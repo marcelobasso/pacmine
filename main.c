@@ -21,8 +21,8 @@
 #define MAX_TOUPEIRAS 200
 //***
 #define ARESTA 30
-#define PASSO 4
-#define PASSO_TOUPEIRAS 2 
+#define PASSO 5
+#define PASSO_TOUPEIRAS 2
 #define QTD_VIDAS 3
 //***
 // define elementos do mapa
@@ -42,20 +42,18 @@ typedef struct Pos {
 //Adicionei a struct Des para marcar o deslocamento
 
 typedef struct Player {
-    POS pos, posInicial;
+    POS pos, posInicial, des;
     int vidas;
 } PLAYER;
 
 typedef struct Toupeira {
     POS pos, posInicial, des;
     int estado; // viva ou morta
+    int id;
 } TOUPEIRA;
 
-void desenhaMapa(int max_linhas, int max_colunas, PLAYER *player, TOUPEIRA *toupeiras, char mapa[MAX_LINHAS][MAX_COLUNAS], int primeira_execucao, int *qnt_toupeiras);
-void carregaMapa(char mapa[MAX_LINHAS][MAX_COLUNAS], int fase);
-
 //*********************************************************************************
-//verifica se o player vai sair da tela 
+//verifica se o player vai sair da tela
 //ainda vai ser melhoras para nao poder passar por obstaculos
 int podeMover(PLAYER *player, int desX, int desY) {
     int i;
@@ -86,27 +84,42 @@ void move(PLAYER *player, int desX, int desY){
 //verifica se o inimigo vai sair dos limites da tela
 //ainda vai ser melhoras para nao poder passar por obstaculos
 int inimigoPodeMover(TOUPEIRA *toupeira, TOUPEIRA *toupeiras, int *qnt_toupeiras){
-    int pode_mover = 0, colisao = 0;
+    int pode_mover = 1, colisao = 0;
     int count = 0;
 
-    // for (count = 0; count < *qnt_toupeiras && !colisao; count++) {
-    //     if (CheckCollisionRecs((Rectangle) { toupeira->pos.x, toupeira->pos.y, ARESTA, ARESTA}, (Rectangle) { toupeiras[count].pos.x, toupeiras[count].pos.y, ARESTA, ARESTA })) {
-    //         colisao = 1;
-    //     }
-    // }
-
-    if (toupeira->pos.x + toupeira->des.x > 0 && toupeira->pos.y + toupeira->des.y > 0) {
-        if (toupeira->pos.x + toupeira->des.x < LARGURA_MAPA - ARESTA && toupeira->pos.y + toupeira->des.y < ALTURA_MAPA - ARESTA) {
-            pode_mover = 1;
+    for (count = 0; count < *qnt_toupeiras / 4 && !colisao; count++) {
+        if (toupeiras[count].id != toupeira->id) {
+            if (CheckCollisionRecs((Rectangle) { toupeira->pos.x, toupeira->pos.y, ARESTA, ARESTA}, (Rectangle) { toupeiras[count].pos.x, toupeiras[count].pos.y, ARESTA, ARESTA })) {
+                toupeira->des.x *= -1;
+                toupeira->des.y *= -1;
+                toupeiras[count].des.x *= -1;
+                toupeiras[count].des.y *= -1;
+            }
         }
     }
 
+    if (toupeira->pos.x == 0 && toupeira->des.x == -1) {
+        pode_mover = 0;
+    }
+    else if(toupeira->pos.y==0 && toupeira->des.y ==-1){
+        pode_mover = 0;
+    }
+    else if(toupeira->pos.x==LARGURA_MAPA-ARESTA && toupeira->des.x ==1){
+        pode_mover = 0;
+    }
+    else if(toupeira->pos.y== ALTURA_MAPA-ARESTA && toupeira->des.y ==1){
+        pode_mover = 0;
+    }
+    else{
+        pode_mover = 1;
+    }
+
     // inverte movimento
-    if (!pode_mover || colisao) {
+    if (!pode_mover) {
         if (toupeira->pos.x + toupeira->des.x > 0 || toupeira->pos.x + toupeira->des.x < LARGURA_MAPA - ARESTA) {
             toupeira->des.x *= -1;
-        } 
-        
+        }
+
         if (toupeira->pos.y + toupeira->des.y > 0 || toupeira->pos.y + toupeira->des.y < ALTURA_MAPA - ARESTA) {
             toupeira->des.y *= -1;
         }
@@ -118,106 +131,6 @@ int inimigoPodeMover(TOUPEIRA *toupeira, TOUPEIRA *toupeiras, int *qnt_toupeiras
 void inimigoMove(TOUPEIRA *toupeira){
     toupeira->pos.x += toupeira->des.x * PASSO_TOUPEIRAS;
     toupeira->pos.y += toupeira->des.y * PASSO_TOUPEIRAS;
-}
-
-//*********************************************************************************
-int main() {
-    srand(time(NULL));
-    PLAYER player;
-    TOUPEIRA toupeiras[MAX_TOUPEIRAS];
-    char mapa[MAX_LINHAS][MAX_COLUNAS];
-    int i, cont, encerra = 0, jogo_iniciado = 0;
-    int qnt_toupeiras = 0;
-
-    carregaMapa(mapa, 1);
-    iniciaToupeiras(toupeiras, mapa, &qnt_toupeiras);    
-
-    InitWindow(LARGURA_MAPA, ALTURA_MAPA, "PACMINE - UFRGS");
-
-    SetTargetFPS(60);
-
-    while (!WindowShouldClose()) {
-
-        BeginDrawing();
-
-        ClearBackground(RAYWHITE);
-        
-        //*********************************************************************************
-        //movimento do jogador
-        if (IsKeyDown(KEY_RIGHT)) {
-            if (podeMover(&player, 1, 0) == 1) {
-                move(&player, 1, 0);
-            }
-        }
-
-        if (IsKeyDown(KEY_LEFT)) {
-            if (podeMover(&player, -1, 0) == 1) {
-                move(&player, -1, 0);
-            }
-        }
-
-        if (IsKeyDown(KEY_UP)) {
-            if (podeMover(&player, 0, -1) == 1) {
-                move(&player, 0, -1);
-            }
-        }
-
-        if (IsKeyDown(KEY_DOWN)) {
-            if (podeMover(&player, 0, 1) == 1) {
-                move(&player, 0, 1);
-            }
-        }
-        
-        // movimento das toupeiras
-        for (i = 0; i < qnt_toupeiras; i++) {
-            if (cont < 1) {
-                toupeiras[i].des.x = rand() % 3 - 1;
-                if (toupeiras[i].des.x == 0) {
-                    do {
-                        toupeiras[i].des.y = rand() % 3 - 1;
-                    } while(toupeiras[i].des.y == 0);
-                }
-
-                cont++;
-            }
-
-            cont++;
-
-            if (cont == 60) {
-                cont = 0;
-            }
-        }
-
-        // move as toupeiras
-        for (i = 0; i < qnt_toupeiras; i++) {
-            if (inimigoPodeMover(&toupeiras[i], toupeiras, &qnt_toupeiras)) {
-                inimigoMove(&toupeiras[i]);
-            }
-        }
-        
-        //tira a vida do jogador caso ele encostar em uma toupeira
-        for (i = 0; i < qnt_toupeiras; i++) {
-            if (CheckCollisionRecs((Rectangle) { player.pos.x, player.pos.y, ARESTA, ARESTA }, (Rectangle) {toupeiras[i].pos.x, toupeiras[i].pos.y, ARESTA, ARESTA})) {
-                resetPosicoes(&player, toupeiras, qnt_toupeiras);
-                player.vidas--;
-
-                if (player.vidas == 0) {
-                    encerra = 1;
-                }
-            }
-        }
-        //*********************************************************************************
-
-        // inicia mapa
-        desenhaMapa(MAX_LINHAS, MAX_COLUNAS, &player, toupeiras, mapa, jogo_iniciado, &qnt_toupeiras);
-        jogo_iniciado = 1;
-
-        EndDrawing();
-    }
-
-    CloseWindow();
-
-    return 0;
 }
 
 void resetPosicoes(PLAYER *player, TOUPEIRA *toupeiras, int qnt_toupeiras) {
@@ -238,9 +151,10 @@ void iniciaToupeiras(TOUPEIRA *toupeiras, char mapa[MAX_LINHAS][MAX_COLUNAS], in
         for (c = 0; c < MAX_COLUNAS; c++) {
             if (mapa[l][c] == 'T') {
                 toupeiras[*qnt_toupeiras].posInicial.x = c * ARESTA;
-                toupeiras[*qnt_toupeiras].posInicial.y = l * ARESTA; 
+                toupeiras[*qnt_toupeiras].posInicial.y = l * ARESTA;
                 toupeiras[*qnt_toupeiras].pos.x = c * ARESTA;
                 toupeiras[*qnt_toupeiras].pos.y = l * ARESTA;
+                toupeiras[*qnt_toupeiras].id = *qnt_toupeiras;
                 *qnt_toupeiras += 1;
             }
         }
@@ -248,30 +162,36 @@ void iniciaToupeiras(TOUPEIRA *toupeiras, char mapa[MAX_LINHAS][MAX_COLUNAS], in
     }
 }
 
-void desenhaMapa(int max_linhas, int max_colunas, PLAYER *player, TOUPEIRA *toupeiras, char mapa[MAX_LINHAS][MAX_COLUNAS], int jogo_iniciado, int *qnt_toupeiras) {
+void iniciaJogador(PLAYER *player, char mapa[MAX_LINHAS][MAX_COLUNAS]) {
+    int l, c;
+
+    for (l = 0; l < MAX_LINHAS; l++) {
+        for (c = 0; c < MAX_COLUNAS; c++) {
+            if (mapa[l][c] == 'J') {
+                player->posInicial.x = c * ARESTA;
+                player->posInicial.y = l * ARESTA;
+                player->pos.x = player->posInicial.x;
+                player->pos.y = player->posInicial.y;
+                player->vidas = QTD_VIDAS;
+                player->des.x = 0;
+                player->des.y = 0;
+            }
+        }
+    }
+}
+
+void desenhaMapa(int max_linhas, int max_colunas, PLAYER *player, TOUPEIRA *toupeiras, char mapa[MAX_LINHAS][MAX_COLUNAS], int *qnt_toupeiras) {
     Color cor_bloco;
     Rectangle bloco;
     int l, c;
 
     for (l = 0; l < MAX_LINHAS; l++) {
         for (c = 0; c < MAX_COLUNAS; c++) {
-
             cor_bloco = RAYWHITE;
 
             switch (mapa[l][c]) {
                 case PAREDE_INDESTRUTIVEL:
                     cor_bloco = BLACK;
-                    break;
-
-                case POS_INICIAL:
-                    if (!jogo_iniciado) {
-                        player->posInicial.x = c * ARESTA;
-                        player->posInicial.y = l * ARESTA;
-                        player->pos.x = player->posInicial.x;
-                        player->pos.y = player->posInicial.y;
-                        player->vidas = QTD_VIDAS;
-                    }
-
                     break;
 
                 case OURO:
@@ -281,18 +201,18 @@ void desenhaMapa(int max_linhas, int max_colunas, PLAYER *player, TOUPEIRA *toup
                 case ESMERALDA:
                     cor_bloco = LIME;
                     break;
-                
+
                 case AREA_SOTERRADA:
                     cor_bloco = BROWN;
                     break;
-                
+
                 case POWER_UP:
                     cor_bloco = PINK;
                     break;
             }
 
-            bloco = (Rectangle) { 
-                x: c * ARESTA, 
+            bloco = (Rectangle) {
+                x: c * ARESTA,
                 y: l * ARESTA,
                 width: ARESTA,
                 height: ARESTA
@@ -333,4 +253,103 @@ void carregaMapa(char mapa[MAX_LINHAS][MAX_COLUNAS], int fase) {
 
 
     fclose(arquivo_mapa);
+}
+
+int main() {
+    srand(time(NULL));
+    PLAYER player;
+    TOUPEIRA toupeiras[MAX_TOUPEIRAS];
+    char mapa[MAX_LINHAS][MAX_COLUNAS];
+    int i, cont, encerra = 0;
+    int qnt_toupeiras = 0;
+
+    carregaMapa(mapa, 1);
+    iniciaToupeiras(toupeiras, mapa, &qnt_toupeiras);
+    iniciaJogador(&player, mapa);
+
+    InitWindow(LARGURA_MAPA, ALTURA_MAPA, "PACMINE - UFRGS");
+
+    SetTargetFPS(60);
+
+    while (!WindowShouldClose()) {
+
+        BeginDrawing();
+
+        ClearBackground(RAYWHITE);
+
+        //*********************************************************************************
+        //movimento do jogador
+        if (IsKeyDown(KEY_RIGHT)) {
+            if (podeMover(&player, 1, 0) == 1) {
+                move(&player, 1, 0);
+            }
+        }
+
+        if (IsKeyDown(KEY_LEFT)) {
+            if (podeMover(&player, -1, 0) == 1) {
+                move(&player, -1, 0);
+            }
+        }
+
+        if (IsKeyDown(KEY_UP)) {
+            if (podeMover(&player, 0, -1) == 1) {
+                move(&player, 0, -1);
+            }
+        }
+
+        if (IsKeyDown(KEY_DOWN)) {
+            if (podeMover(&player, 0, 1) == 1) {
+                move(&player, 0, 1);
+            }
+        }
+
+        // movimento das toupeiras
+        for (i = 0; i < qnt_toupeiras; i++) {
+            if (cont < 1) {
+                toupeiras[i].des.x = rand() % 3 - 1;
+                if (toupeiras[i].des.x == 0) {
+                    do {
+                        toupeiras[i].des.y = rand() % 3 - 1;
+                    } while(toupeiras[i].des.y == 0);
+                }
+
+                cont++;
+            }
+
+            cont++;
+
+            if (cont == 60) {
+                cont = 0;
+            }
+        }
+
+        // move as toupeiras
+        for (i = 0; i < qnt_toupeiras; i++) {
+            if (inimigoPodeMover(&toupeiras[i], toupeiras, &qnt_toupeiras)) {
+                inimigoMove(&toupeiras[i]);
+            }
+        }
+
+        //tira a vida do jogador caso ele encostar em uma toupeira
+        for (i = 0; i < qnt_toupeiras; i++) {
+            if (CheckCollisionRecs((Rectangle) { player.pos.x, player.pos.y, ARESTA, ARESTA }, (Rectangle) {toupeiras[i].pos.x, toupeiras[i].pos.y, ARESTA, ARESTA})) {
+                resetPosicoes(&player, toupeiras, qnt_toupeiras);
+                player.vidas--;
+
+                if (player.vidas == 0) {
+                    encerra = 1;
+                }
+            }
+        }
+        //*********************************************************************************
+
+        // inicia mapa
+        desenhaMapa(MAX_LINHAS, MAX_COLUNAS, &player, toupeiras, mapa, &qnt_toupeiras);
+
+        EndDrawing();
+    }
+
+    CloseWindow();
+
+    return 0;
 }
