@@ -52,29 +52,32 @@ typedef struct Toupeira {
     int id;
 } TOUPEIRA;
 
+int dentroDosLimites(POS posicao, POS deslocamento, int lim_x, int lim_y) {
+    int dentro = 1;
+
+    if (posicao.x == 0 && deslocamento.x == -1) {
+        dentro = 0;
+    }
+    else if (posicao.y == 0 && deslocamento.y == -1) {
+        dentro = 0;
+    }
+    else if (posicao.x == lim_x - ARESTA && deslocamento.x == 1){
+        dentro = 0;
+    }
+    else if (posicao.y == lim_y - ARESTA && deslocamento.y == 1) {
+        dentro = 0;
+    }
+
+    return dentro;
+}
+
 //*********************************************************************************
 //verifica se o player vai sair da tela
 //ainda vai ser melhoras para nao poder passar por obstaculos
-int podeMover(PLAYER *player, int desX, int desY) {
-    int i;
-
-    if (player->pos.x == 0 && desX == -1) {
-        i = 0;
-    }
-    else if(player->pos.y==0 && desY ==-1){
-        i = 0;
-    }
-    else if(player->pos.x==LARGURA_MAPA-ARESTA && desX ==1){
-        i = 0;
-    }
-    else if(player->pos.y== ALTURA_MAPA-ARESTA && desY ==1){
-        i = 0;
-    }
-    else{
-        i = 1;
-    }
-    return i;
+int podeMover(PLAYER player) {
+    return dentroDosLimites(player.pos, player.des, LARGURA_MAPA, ALTURA_MAPA);    
 }
+
 //move o player
 void move(PLAYER *player, int desX, int desY){
     player->pos.x = player->pos.x + desX * PASSO;
@@ -84,49 +87,28 @@ void move(PLAYER *player, int desX, int desY){
 //verifica se o inimigo vai sair dos limites da tela
 //ainda vai ser melhoras para nao poder passar por obstaculos
 int inimigoPodeMover(TOUPEIRA *toupeira, TOUPEIRA *toupeiras, int *qnt_toupeiras){
-    int pode_mover = 1, colisao = 0;
+    int pode_mover = 1, rota_colisao = 0;
     int count = 0;
 
-    for (count = 0; count < *qnt_toupeiras / 4 && !colisao; count++) {
+    // checa se a toupeira esta em rota de colisao com outra toupeira
+    for (count = 0; count < *qnt_toupeiras && !rota_colisao; count++) {
         if (toupeiras[count].id != toupeira->id) {
-            if (CheckCollisionRecs((Rectangle) { toupeira->pos.x, toupeira->pos.y, ARESTA, ARESTA}, (Rectangle) { toupeiras[count].pos.x, toupeiras[count].pos.y, ARESTA, ARESTA })) {
-                toupeira->des.x *= -1;
-                toupeira->des.y *= -1;
-                toupeiras[count].des.x *= -1;
-                toupeiras[count].des.y *= -1;
-            }
+            rota_colisao = CheckCollisionRecs((Rectangle) { toupeira->pos.x + toupeira->des.x, toupeira->pos.y + toupeira->des.y, ARESTA, ARESTA}, (Rectangle) { toupeiras[count].pos.x, toupeiras[count].pos.y, ARESTA, ARESTA }); 
         }
     }
 
-    if (toupeira->pos.x == 0 && toupeira->des.x == -1) {
-        pode_mover = 0;
-    }
-    else if(toupeira->pos.y==0 && toupeira->des.y ==-1){
-        pode_mover = 0;
-    }
-    else if(toupeira->pos.x==LARGURA_MAPA-ARESTA && toupeira->des.x ==1){
-        pode_mover = 0;
-    }
-    else if(toupeira->pos.y== ALTURA_MAPA-ARESTA && toupeira->des.y ==1){
-        pode_mover = 0;
-    }
-    else{
-        pode_mover = 1;
-    }
+    // checa se a toupeira esta nos limites do mapa e nao esta em rota de colisao
+    pode_mover = dentroDosLimites(toupeira->pos, toupeira->des, LARGURA_MAPA, ALTURA_MAPA) && !rota_colisao; 
 
-    // inverte movimento
+    // inverte movimento caso nao puder se deslocar na direcao desejada
     if (!pode_mover) {
-        if (toupeira->pos.x + toupeira->des.x > 0 || toupeira->pos.x + toupeira->des.x < LARGURA_MAPA - ARESTA) {
-            toupeira->des.x *= -1;
-        }
-
-        if (toupeira->pos.y + toupeira->des.y > 0 || toupeira->pos.y + toupeira->des.y < ALTURA_MAPA - ARESTA) {
-            toupeira->des.y *= -1;
-        }
+        if (toupeira->des.x) toupeira->des.x *= -1;
+        if (toupeira->des.y) toupeira->des.y *= -1;
     }
 
     return pode_mover;
 }
+
 //move as toupeiras
 void inimigoMove(TOUPEIRA *toupeira){
     toupeira->pos.x += toupeira->des.x * PASSO_TOUPEIRAS;
@@ -232,6 +214,30 @@ void desenhaMapa(int max_linhas, int max_colunas, PLAYER *player, TOUPEIRA *toup
     }
 }
 
+void movimentaJogador(PLAYER *player) {
+    player->des = (POS) { x: 0, y: 0 };
+        
+    if (IsKeyDown(KEY_RIGHT)) {
+        player->des.x = 1;
+    }
+
+    if (IsKeyDown(KEY_LEFT)) {
+        player->des.x = -1;
+    }
+
+    if (IsKeyDown(KEY_UP)) {
+        player->des.y = -1;
+    }
+
+    if (IsKeyDown(KEY_DOWN)) {
+        player->des.y = 1;
+    }
+
+    if (podeMover(*player)) {
+        move(player, player->des.x, player->des.y);
+    }
+}
+
 void carregaMapa(char mapa[MAX_LINHAS][MAX_COLUNAS], int fase) {
     char caminho_mapa[MAX_PATH_SIZE];
     char linha_mapa[TAMANHO_MAPA];
@@ -279,29 +285,7 @@ int main() {
 
         //*********************************************************************************
         //movimento do jogador
-        if (IsKeyDown(KEY_RIGHT)) {
-            if (podeMover(&player, 1, 0) == 1) {
-                move(&player, 1, 0);
-            }
-        }
-
-        if (IsKeyDown(KEY_LEFT)) {
-            if (podeMover(&player, -1, 0) == 1) {
-                move(&player, -1, 0);
-            }
-        }
-
-        if (IsKeyDown(KEY_UP)) {
-            if (podeMover(&player, 0, -1) == 1) {
-                move(&player, 0, -1);
-            }
-        }
-
-        if (IsKeyDown(KEY_DOWN)) {
-            if (podeMover(&player, 0, 1) == 1) {
-                move(&player, 0, 1);
-            }
-        }
+        movimentaJogador(&player);
 
         // movimento das toupeiras
         for (i = 0; i < qnt_toupeiras; i++) {
