@@ -137,6 +137,9 @@ void iniciaToupeiras(TOUPEIRA *toupeiras, char mapa[MAX_LINHAS][MAX_COLUNAS], in
                 toupeiras[*qnt_toupeiras].pos.x = c * ARESTA;
                 toupeiras[*qnt_toupeiras].pos.y = l * ARESTA;
                 toupeiras[*qnt_toupeiras].id = *qnt_toupeiras;
+                toupeiras[*qnt_toupeiras].des.x = 0;
+                toupeiras[*qnt_toupeiras].des.y = 0;
+                
                 *qnt_toupeiras += 1;
             }
         }
@@ -165,7 +168,7 @@ void iniciaJogador(PLAYER *player, char mapa[MAX_LINHAS][MAX_COLUNAS]) {
 void desenhaMapa(int max_linhas, int max_colunas, PLAYER *player, TOUPEIRA *toupeiras, char mapa[MAX_LINHAS][MAX_COLUNAS], int *qnt_toupeiras) {
     Color cor_bloco;
     Rectangle bloco;
-    int l, c;
+    int l, c, c_toup;
 
     for (l = 0; l < MAX_LINHAS; l++) {
         for (c = 0; c < MAX_COLUNAS; c++) {
@@ -209,8 +212,8 @@ void desenhaMapa(int max_linhas, int max_colunas, PLAYER *player, TOUPEIRA *toup
     DrawRectangle(player->pos.x, player->pos.y, ARESTA, ARESTA, GREEN);
 
     // desenha toupeiras
-    for (l = 0; l < *qnt_toupeiras; l++) {
-        DrawRectangle(toupeiras[l].pos.x, toupeiras[l].pos.y, ARESTA, ARESTA, RED);
+    for (c_toup = 0; c_toup < *qnt_toupeiras; c_toup++) {
+        DrawRectangle(toupeiras[c_toup].pos.x, toupeiras[c_toup].pos.y, ARESTA, ARESTA, RED);
     }
 }
 
@@ -289,28 +292,29 @@ int main() {
 
         // movimento das toupeiras
         for (i = 0; i < qnt_toupeiras; i++) {
-            if (cont < 1) {
-                toupeiras[i].des.x = rand() % 3 - 1;
+            // define uma direcao a cada segundo
+            if (cont == 0) {
+                // reseta o deslocamento
+                toupeiras[i].des = (POS) {x: 0, y: 0};
+
+                toupeiras[i].des.x = GetRandomValue(-1, 1);
                 if (toupeiras[i].des.x == 0) {
                     do {
-                        toupeiras[i].des.y = rand() % 3 - 1;
-                    } while(toupeiras[i].des.y == 0);
+                        toupeiras[i].des.y = GetRandomValue(-1, 1);
+                    } while (toupeiras[i].des.y == 0);
                 }
-
-                cont++;
             }
+        }
 
-            cont++;
-
-            if (cont == 60) {
-                cont = 0;
-            }
+        cont++;
+        if (cont == 60) {
+            cont = 0;
         }
 
         // move as toupeiras
         for (i = 0; i < qnt_toupeiras; i++) {
             if (inimigoPodeMover(&toupeiras[i], toupeiras, &qnt_toupeiras)) {
-                inimigoMove(&toupeiras[i]);
+               inimigoMove(&toupeiras[i]);
             }
         }
 
