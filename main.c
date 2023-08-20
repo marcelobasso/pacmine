@@ -91,26 +91,24 @@ void move(Vector2 *pos, Vector2 des, int passo) {
     pos->y += des.y * passo;
 }
 
-//verifica se o player vai sair da tela
-//ainda vai ser melhoras para nao poder passar por obstaculos
-int podeMover(PLAYER player, JOGO jogo, char blocos_atravessaveis[]) {
+// verifica se a entidade (player/toupeira) está dentro da tela e se ele não está colidindo com nenhum obstáculo
+int podeMover(Vector2 pos, Vector2 des, JOGO jogo, char blocos_atravessaveis[]) {
     int linha, coluna;
-    int linha_p, coluna_p, colisao = 0;
-
+    int linha_entidade, coluna_entidade, colisao = 0;
     int linha_checada, coluna_checada;
 
-    linha_p = (int) player.pos.y / jogo.aresta;
-    coluna_p = (int) player.pos.x / jogo.aresta;
+    linha_entidade = (int) pos.y / jogo.aresta;
+    coluna_entidade = (int) pos.x / jogo.aresta;
 
     for (linha = -1; linha < 2 && !colisao; linha++) {
         for (coluna = -1; coluna < 2 && !colisao; coluna++) {
 
-            linha_checada = linha_p + linha;
-            coluna_checada = coluna_p + coluna;
+            linha_checada = linha_entidade + linha;
+            coluna_checada = coluna_entidade + coluna;
 
-            if (!ValorNoArray(jogo.mapa[linha_checada][coluna_checada], player.blocos_atravessaveis, N_TIPOS_BLOCOS)) {
+            if (!ValorNoArray(jogo.mapa[linha_checada][coluna_checada], blocos_atravessaveis, N_TIPOS_BLOCOS)) {
                 if (CheckCollisionRecs(
-                    (Rectangle) { player.pos.x + player.des.x, player.pos.y + player.des.y, jogo.aresta, jogo.aresta },
+                    (Rectangle) { pos.x + des.x, pos.y + des.y, jogo.aresta, jogo.aresta },
                     (Rectangle) { coluna_checada * jogo.aresta, linha_checada * jogo.aresta, jogo.aresta, jogo.aresta })) {
                     colisao = 1;
                 }
@@ -118,7 +116,7 @@ int podeMover(PLAYER player, JOGO jogo, char blocos_atravessaveis[]) {
         }
     }
 
-    return dentroDosLimites(player.pos, player.des, jogo.largura_mapa, jogo.altura_mapa, jogo.aresta) && !colisao;    
+    return dentroDosLimites(pos, des, jogo.largura_mapa, jogo.altura_mapa, jogo.aresta) && !colisao;    
 }
 
 //verifica se o inimigo vai sair dos limites da tela
@@ -135,7 +133,7 @@ int inimigoPodeMover(TOUPEIRA *toupeira, TOUPEIRA *toupeiras, JOGO jogo){
     }
 
     // checa se a toupeira esta nos limites do mapa e nao esta em rota de colisao
-    pode_mover = dentroDosLimites(toupeira->pos, toupeira->des, jogo.largura_mapa, jogo.altura_mapa, ARESTA) && !rota_colisao; 
+    pode_mover = podeMover(toupeira->pos, toupeira->des, jogo, toupeira->blocos_atravessaveis) && !rota_colisao; 
 
     // inverte movimento caso nao puder se deslocar na direcao desejada
     if (!pode_mover) {
@@ -172,8 +170,9 @@ void iniciaToupeiras(TOUPEIRA *toupeiras, char mapa[MAX_LINHAS][MAX_COLUNAS], JO
                 toupeiras[pos_vetor].pos.x = c * jogo->aresta;
                 toupeiras[pos_vetor].pos.y = l * jogo->aresta;
                 toupeiras[pos_vetor].id = pos_vetor;
-                sprintf(toupeiras[pos_vetor].blocos_atravessaveis, "%c%c", LIVRE, AREA_SOTERRADA);
+                sprintf(toupeiras[pos_vetor].blocos_atravessaveis, "%c%c%c%c%c%c%c", LIVRE, AREA_SOTERRADA, POS_INICIAL_TOUPEIRA, POS_INICIAL, OURO, ESMERALDA, POWER_UP);
 
+                // define uma posição inicial para as toupeiras seguirem
                 toupeiras[pos_vetor].des.x = GetRandomValue(-1, 1);
                 if (toupeiras[pos_vetor].des.x == 0) {
                     do {
@@ -210,11 +209,15 @@ void iniciaJogador(PLAYER *player, char mapa[MAX_LINHAS][MAX_COLUNAS]) {
 void desenhaMapa(int max_linhas, int max_colunas, PLAYER *player, TOUPEIRA *toupeiras, JOGO jogo) {
     Color cor_bloco;
     Rectangle bloco;
-    int l, c, c_toup;
+    int l, c, c_toup, x, y, width, height;
 
     for (l = 0; l < MAX_LINHAS; l++) {
         for (c = 0; c < MAX_COLUNAS; c++) {
             cor_bloco = RAYWHITE;
+            x = c * ARESTA;
+            y = l * ARESTA;
+            width = jogo.aresta;
+            height = jogo.aresta;
 
             switch (jogo.mapa[l][c]) {
                 case PAREDE_INDESTRUTIVEL:
@@ -226,32 +229,29 @@ void desenhaMapa(int max_linhas, int max_colunas, PLAYER *player, TOUPEIRA *toup
                     break;
 
                 case ESMERALDA:
-                    cor_bloco = LIME;
+                    cor_bloco = (Color) { 10, 228, 100, 122 };
                     break;
 
                 case AREA_SOTERRADA:
-                    cor_bloco = BROWN;
+                    cor_bloco = (Color) { 100, 80, 60, 255 };
                     break;
 
                 case POWER_UP:
-                    cor_bloco = PINK;
+                    x += 7.5;
+                    y += 7.5;
+                    width = 15;
+                    height = 15;
+                    cor_bloco = (Color) { 255, 60, 180, 255 };
                     break;
             }
 
-            bloco = (Rectangle) {
-                x: c * ARESTA,
-                y: l * ARESTA,
-                width: ARESTA,
-                height: ARESTA
-            };
-
+            bloco = (Rectangle) { x, y, width, height };
             DrawRectangleRec(bloco, cor_bloco);
-
         }
     }
 
     // desenha jogador
-    DrawRectangle(player->pos.x, player->pos.y, ARESTA, ARESTA, GREEN);
+    DrawRectangle(player->pos.x, player->pos.y, ARESTA, ARESTA, BLUE);
 
     // desenha toupeiras
     for (c_toup = 0; c_toup < jogo.qnt_toupeiras; c_toup++) {
@@ -280,7 +280,7 @@ void movimentaJogador(PLAYER *player, int passo, TOUPEIRA *toupeiras, JOGO jogo)
     }
 
     if (player->des.y || player->des.x) {
-        if (podeMover(*player, jogo, player->blocos_atravessaveis)) {
+        if (podeMover(player->pos, player->des, jogo, player->blocos_atravessaveis)) {
             move(&player->pos, player->des, passo);
         }
     }
@@ -371,7 +371,7 @@ int main() {
 
     iniciaJogo(&jogo);
 
-    carregaMapa(&jogo, 1);
+    carregaMapa(&jogo, 2);
     iniciaToupeiras(toupeiras, jogo.mapa, &jogo);
     iniciaJogador(&player, jogo.mapa);
 
