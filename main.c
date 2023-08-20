@@ -10,7 +10,8 @@
 #define MAX_COLUNAS 30
 #define MAX_LINHAS 20
 
-#define ALTURA_MENU 50
+#define ALTURA_MENU_SUPERIOR 30
+#define ALTURA_MENU_INFERIOR 60
 #define MAX_TOUPEIRAS 200
 #define N_TIPOS_BLOCOS 8
 
@@ -40,7 +41,7 @@
 
 typedef struct Player {
     Vector2 pos, posInicial, des;
-    int vidas;
+    int vidas, pontos, esmeraldas_coletadas;
     char blocos_atravessaveis[N_TIPOS_BLOCOS];
 } PLAYER;
 
@@ -97,7 +98,7 @@ int podeMover(Vector2 pos, Vector2 des, JOGO jogo, char blocos_atravessaveis[]) 
     int linha_entidade, coluna_entidade, colisao = 0;
     int linha_checada, coluna_checada;
 
-    linha_entidade = (int) pos.y / jogo.aresta;
+    linha_entidade = ((int) pos.y - ALTURA_MENU_SUPERIOR) / jogo.aresta;
     coluna_entidade = (int) pos.x / jogo.aresta;
 
     for (linha = -1; linha < 2 && !colisao; linha++) {
@@ -109,7 +110,7 @@ int podeMover(Vector2 pos, Vector2 des, JOGO jogo, char blocos_atravessaveis[]) 
             if (!ValorNoArray(jogo.mapa[linha_checada][coluna_checada], blocos_atravessaveis, N_TIPOS_BLOCOS)) {
                 if (CheckCollisionRecs(
                     (Rectangle) { pos.x + des.x, pos.y + des.y, jogo.aresta, jogo.aresta },
-                    (Rectangle) { coluna_checada * jogo.aresta, linha_checada * jogo.aresta, jogo.aresta, jogo.aresta })) {
+                    (Rectangle) { coluna_checada * jogo.aresta, (linha_checada * jogo.aresta) + ALTURA_MENU_SUPERIOR, jogo.aresta, jogo.aresta })) {
                     colisao = 1;
                 }
             }
@@ -168,7 +169,7 @@ void iniciaToupeiras(TOUPEIRA *toupeiras, char mapa[MAX_LINHAS][MAX_COLUNAS], JO
                 toupeiras[pos_vetor].posInicial.x = c * jogo->aresta;
                 toupeiras[pos_vetor].posInicial.y = l * jogo->aresta;
                 toupeiras[pos_vetor].pos.x = c * jogo->aresta;
-                toupeiras[pos_vetor].pos.y = l * jogo->aresta;
+                toupeiras[pos_vetor].pos.y = l * jogo->aresta + ALTURA_MENU_SUPERIOR;
                 toupeiras[pos_vetor].id = pos_vetor;
                 sprintf(toupeiras[pos_vetor].blocos_atravessaveis, "%c%c%c%c%c%c%c", LIVRE, AREA_SOTERRADA, POS_INICIAL_TOUPEIRA, POS_INICIAL, OURO, ESMERALDA, POWER_UP);
 
@@ -194,12 +195,14 @@ void iniciaJogador(PLAYER *player, char mapa[MAX_LINHAS][MAX_COLUNAS]) {
         for (c = 0; c < MAX_COLUNAS; c++) {
             if (mapa[l][c] == 'J') {
                 player->posInicial.x = c * ARESTA;
-                player->posInicial.y = l * ARESTA;
+                player->posInicial.y = l * ARESTA + ALTURA_MENU_SUPERIOR;
                 player->pos.x = player->posInicial.x;
                 player->pos.y = player->posInicial.y;
                 player->vidas = QTD_VIDAS;
                 player->des.x = 0;
                 player->des.y = 0;
+                player->pontos = 0;
+                player->esmeraldas_coletadas = 0;
                 sprintf(player->blocos_atravessaveis, "%c%c", LIVRE, POS_INICIAL);
             }
         }
@@ -215,7 +218,7 @@ void desenhaMapa(int max_linhas, int max_colunas, PLAYER *player, TOUPEIRA *toup
         for (c = 0; c < MAX_COLUNAS; c++) {
             cor_bloco = RAYWHITE;
             x = c * ARESTA;
-            y = l * ARESTA;
+            y = (l * ARESTA) + ALTURA_MENU_SUPERIOR;
             width = jogo.aresta;
             height = jogo.aresta;
 
@@ -364,6 +367,13 @@ void iniciaJogo(JOGO *jogo) {
     jogo->toup_muda_movimento = GetTime();
 }
 
+void desenhaTextos(JOGO jogo, PLAYER player) {
+    char title[50] = { "PACMINE - UFRGS" };
+    DrawRectangle(0, 0, jogo.largura_mapa, ALTURA_MENU_SUPERIOR, GRAY);
+    DrawRectangle(0, (jogo.altura_mapa + ALTURA_MENU_SUPERIOR), jogo.largura_mapa, ALTURA_MENU_INFERIOR, GRAY);
+    DrawText(title, (jogo.largura_mapa - MeasureText(title, 20)) / 2, 5, 20, BLACK);
+}
+
 int main() {
     JOGO jogo;
     PLAYER player;
@@ -375,7 +385,7 @@ int main() {
     iniciaToupeiras(toupeiras, jogo.mapa, &jogo);
     iniciaJogador(&player, jogo.mapa);
 
-    InitWindow(jogo.largura_mapa, jogo.altura_mapa, "PACMINE - UFRGS");
+    InitWindow(jogo.largura_mapa, jogo.altura_mapa + (ALTURA_MENU_INFERIOR + ALTURA_MENU_SUPERIOR), "PACMINE - UFRGS");
 
     SetTargetFPS(60);
 
@@ -384,6 +394,8 @@ int main() {
         BeginDrawing();
 
         ClearBackground(RAYWHITE);
+
+        desenhaTextos(jogo, player);
 
         //movimento do jogador
         movimentaJogador(&player, PASSO, toupeiras, jogo);
