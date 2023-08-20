@@ -35,6 +35,13 @@
 #define POWER_UP 'A'
 #define LIVRE ' '
 
+// define menu
+#define NOJO_JOGO 'N'
+#define CARREGAR_JOGO 'C'
+#define SALVAR_JOGO 'S'
+#define SAIR 'S'
+#define VOLTAR 'V'
+
 typedef struct Pos {
     int x, y;
 } POS;
@@ -51,6 +58,11 @@ typedef struct Toupeira {
     int estado; // viva ou morta
     int id;
 } TOUPEIRA;
+
+typedef struct {
+    char mapa[PATH_MAX], mapas[10][PATH_MAX];
+    char opcao;
+} JOGO;
 
 int dentroDosLimites(POS posicao, POS deslocamento, int lim_x, int lim_y) {
     int dentro = 1;
@@ -71,17 +83,16 @@ int dentroDosLimites(POS posicao, POS deslocamento, int lim_x, int lim_y) {
     return dentro;
 }
 
+void move(POS *pos, POS des, int passo) {
+    pos->x += des.x * passo;
+    pos->y += des.y * passo;
+}
+
 //*********************************************************************************
 //verifica se o player vai sair da tela
 //ainda vai ser melhoras para nao poder passar por obstaculos
 int podeMover(PLAYER player) {
     return dentroDosLimites(player.pos, player.des, LARGURA_MAPA, ALTURA_MAPA);    
-}
-
-//move o player
-void move(PLAYER *player, int desX, int desY){
-    player->pos.x = player->pos.x + desX * PASSO;
-    player->pos.y = player->pos.y + desY * PASSO;
 }
 
 //verifica se o inimigo vai sair dos limites da tela
@@ -107,12 +118,6 @@ int inimigoPodeMover(TOUPEIRA *toupeira, TOUPEIRA *toupeiras, int *qnt_toupeiras
     }
 
     return pode_mover;
-}
-
-//move as toupeiras
-void inimigoMove(TOUPEIRA *toupeira){
-    toupeira->pos.x += toupeira->des.x * PASSO_TOUPEIRAS;
-    toupeira->pos.y += toupeira->des.y * PASSO_TOUPEIRAS;
 }
 
 void resetPosicoes(PLAYER *player, TOUPEIRA *toupeiras, int qnt_toupeiras) {
@@ -219,25 +224,25 @@ void desenhaMapa(int max_linhas, int max_colunas, PLAYER *player, TOUPEIRA *toup
 
 void movimentaJogador(PLAYER *player) {
     player->des = (POS) { x: 0, y: 0 };
-        
-    if (IsKeyDown(KEY_RIGHT)) {
+
+    if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)) {
         player->des.x = 1;
     }
 
-    if (IsKeyDown(KEY_LEFT)) {
+    if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A)) {
         player->des.x = -1;
     }
 
-    if (IsKeyDown(KEY_UP)) {
+    if (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W)) {
         player->des.y = -1;
     }
 
-    if (IsKeyDown(KEY_DOWN)) {
+    if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)) {
         player->des.y = 1;
     }
 
     if (podeMover(*player)) {
-        move(player, player->des.x, player->des.y);
+       move(&player->pos, player->des, PASSO);
     }
 }
 
@@ -314,7 +319,7 @@ int main() {
         // move as toupeiras
         for (i = 0; i < qnt_toupeiras; i++) {
             if (inimigoPodeMover(&toupeiras[i], toupeiras, &qnt_toupeiras)) {
-               inimigoMove(&toupeiras[i]);
+                move(&toupeiras[i].pos, toupeiras[i].des, PASSO_TOUPEIRAS);
             }
         }
 
