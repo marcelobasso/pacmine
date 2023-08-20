@@ -61,26 +61,6 @@ typedef struct {
     double toup_muda_movimento;
 } JOGO;
 
-// Função que verifica se a posicao atual + o deslocamento de um corpo ainda o manterá dentro dos limites da tela.
-int dentroDosLimites(Vector2 posicao, Vector2 deslocamento, int lim_x, int lim_y, int aresta) {
-    int dentro = 1;
-
-    if (posicao.x == 0 && deslocamento.x == -1) {
-        dentro = 0;
-    }
-    else if (posicao.y == 0 && deslocamento.y == -1) {
-        dentro = 0;
-    }
-    else if (posicao.x == lim_x - aresta && deslocamento.x == 1){
-        dentro = 0;
-    }
-    else if (posicao.y == lim_y - aresta && deslocamento.y == 1) {
-        dentro = 0;
-    }
-
-    return dentro;
-}
-
 int ValorNoArray(char valor, char array[], int t_array) {
     if (t_array < 0) return 0;
     return array[t_array] == valor || ValorNoArray(valor, array, t_array - 1);
@@ -117,7 +97,7 @@ int podeMover(Vector2 pos, Vector2 des, JOGO jogo, char blocos_atravessaveis[]) 
         }
     }
 
-    return dentroDosLimites(pos, des, jogo.largura_mapa, jogo.altura_mapa, jogo.aresta) && !colisao;    
+    return !colisao;    
 }
 
 //verifica se o inimigo vai sair dos limites da tela
@@ -209,6 +189,7 @@ void iniciaJogador(PLAYER *player, char mapa[MAX_LINHAS][MAX_COLUNAS]) {
     }
 }
 
+// funcao responsável por desenhar todos os elementos do jogo (fora os menus e textos)
 void desenhaMapa(int max_linhas, int max_colunas, PLAYER *player, TOUPEIRA *toupeiras, JOGO jogo) {
     Color cor_bloco;
     Rectangle bloco;
@@ -262,6 +243,7 @@ void desenhaMapa(int max_linhas, int max_colunas, PLAYER *player, TOUPEIRA *toup
     }
 }
 
+// Funcao responsável por realizar movimentação do jogador
 void movimentaJogador(PLAYER *player, int passo, TOUPEIRA *toupeiras, JOGO jogo) {
     int i;
     player->des = (Vector2) { 0, 0 };
