@@ -12,6 +12,7 @@
 
 #define ALTURA_MENU 50
 #define MAX_TOUPEIRAS 200
+#define N_TIPOS_BLOCOS 8
 
 #define ARESTA 30
 #define PASSO 5
@@ -40,16 +41,19 @@
 typedef struct Player {
     Vector2 pos, posInicial, des;
     int vidas;
+    char blocos_atravessaveis[N_TIPOS_BLOCOS];
 } PLAYER;
 
 typedef struct Toupeira {
     Vector2 pos, posInicial, des;
     int estado; // viva ou morta
     int id;
+    char blocos_atravessaveis[N_TIPOS_BLOCOS];
 } TOUPEIRA;
 
 typedef struct {
-    char mapa[PATH_MAX], mapas[10][PATH_MAX];
+    char mapa_atual[PATH_MAX], mapas[10][PATH_MAX];
+    char mapa[MAX_LINHAS][MAX_COLUNAS];
     int altura_mapa, largura_mapa, aresta;
     int qnt_toupeiras;
     char opcao;
@@ -76,6 +80,10 @@ int dentroDosLimites(Vector2 posicao, Vector2 deslocamento, int lim_x, int lim_y
     return dentro;
 }
 
+int ValorNoArray(char valor, char array[], int t_array) {
+    if (t_array < 0) return 0;
+    return array[t_array] == valor || ValorNoArray(valor, array, t_array - 1);
+}
 
 // Função responsável pela movimentação do jogador e dos inimigos.
 void move(Vector2 *pos, Vector2 des, int passo) {
@@ -83,11 +91,34 @@ void move(Vector2 *pos, Vector2 des, int passo) {
     pos->y += des.y * passo;
 }
 
-//*********************************************************************************
 //verifica se o player vai sair da tela
 //ainda vai ser melhoras para nao poder passar por obstaculos
-int podeMover(PLAYER player, JOGO jogo) {
-    return dentroDosLimites(player.pos, player.des, jogo.largura_mapa, jogo.altura_mapa, ARESTA);    
+int podeMover(PLAYER player, JOGO jogo, char blocos_atravessaveis[]) {
+    int linha, coluna;
+    int linha_p, coluna_p, colisao = 0;
+
+    int linha_checada, coluna_checada;
+
+    linha_p = (int) player.pos.y / jogo.aresta;
+    coluna_p = (int) player.pos.x / jogo.aresta;
+
+    for (linha = -1; linha < 2 && !colisao; linha++) {
+        for (coluna = -1; coluna < 2 && !colisao; coluna++) {
+
+            linha_checada = linha_p + linha;
+            coluna_checada = coluna_p + coluna;
+
+            if (!ValorNoArray(jogo.mapa[linha_checada][coluna_checada], player.blocos_atravessaveis, N_TIPOS_BLOCOS)) {
+                if (CheckCollisionRecs(
+                    (Rectangle) { player.pos.x + player.des.x, player.pos.y + player.des.y, jogo.aresta, jogo.aresta },
+                    (Rectangle) { coluna_checada * jogo.aresta, linha_checada * jogo.aresta, jogo.aresta, jogo.aresta })) {
+                    colisao = 1;
+                }
+            }
+        }
+    }
+
+    return dentroDosLimites(player.pos, player.des, jogo.largura_mapa, jogo.altura_mapa, jogo.aresta) && !colisao;    
 }
 
 //verifica se o inimigo vai sair dos limites da tela
@@ -115,6 +146,7 @@ int inimigoPodeMover(TOUPEIRA *toupeira, TOUPEIRA *toupeiras, JOGO jogo){
     return pode_mover;
 }
 
+// coloca o player e os inimigos vivos na posicao inicial
 void resetPosicoes(PLAYER *player, TOUPEIRA *toupeiras, int qnt_toupeiras) {
     int i = 0;
 
@@ -126,6 +158,7 @@ void resetPosicoes(PLAYER *player, TOUPEIRA *toupeiras, int qnt_toupeiras) {
     player->pos.y = player->posInicial.y;
 }
 
+// Inicia o vetor de toupeiras
 void iniciaToupeiras(TOUPEIRA *toupeiras, char mapa[MAX_LINHAS][MAX_COLUNAS], JOGO *jogo) {
     int l, c, pos_vetor;
 
@@ -134,12 +167,12 @@ void iniciaToupeiras(TOUPEIRA *toupeiras, char mapa[MAX_LINHAS][MAX_COLUNAS], JO
             pos_vetor = jogo->qnt_toupeiras;
 
             if (mapa[l][c] == 'T') {
-                toupeiras[pos_vetor].posInicial.x = c * ARESTA;
-                toupeiras[pos_vetor].posInicial.y = l * ARESTA;
-                toupeiras[pos_vetor].pos.x = c * ARESTA;
-                toupeiras[pos_vetor].pos.y = l * ARESTA;
+                toupeiras[pos_vetor].posInicial.x = c * jogo->aresta;
+                toupeiras[pos_vetor].posInicial.y = l * jogo->aresta;
+                toupeiras[pos_vetor].pos.x = c * jogo->aresta;
+                toupeiras[pos_vetor].pos.y = l * jogo->aresta;
                 toupeiras[pos_vetor].id = pos_vetor;
-
+                sprintf(toupeiras[pos_vetor].blocos_atravessaveis, "%c%c", LIVRE, AREA_SOTERRADA);
 
                 toupeiras[pos_vetor].des.x = GetRandomValue(-1, 1);
                 if (toupeiras[pos_vetor].des.x == 0) {
@@ -151,10 +184,10 @@ void iniciaToupeiras(TOUPEIRA *toupeiras, char mapa[MAX_LINHAS][MAX_COLUNAS], JO
                 jogo->qnt_toupeiras += 1;
             }
         }
-
     }
 }
 
+// Inicia as informações do jogador
 void iniciaJogador(PLAYER *player, char mapa[MAX_LINHAS][MAX_COLUNAS]) {
     int l, c;
 
@@ -168,12 +201,13 @@ void iniciaJogador(PLAYER *player, char mapa[MAX_LINHAS][MAX_COLUNAS]) {
                 player->vidas = QTD_VIDAS;
                 player->des.x = 0;
                 player->des.y = 0;
+                sprintf(player->blocos_atravessaveis, "%c%c", LIVRE, POS_INICIAL);
             }
         }
     }
 }
 
-void desenhaMapa(int max_linhas, int max_colunas, PLAYER *player, TOUPEIRA *toupeiras, char mapa[MAX_LINHAS][MAX_COLUNAS], int *qnt_toupeiras) {
+void desenhaMapa(int max_linhas, int max_colunas, PLAYER *player, TOUPEIRA *toupeiras, JOGO jogo) {
     Color cor_bloco;
     Rectangle bloco;
     int l, c, c_toup;
@@ -182,7 +216,7 @@ void desenhaMapa(int max_linhas, int max_colunas, PLAYER *player, TOUPEIRA *toup
         for (c = 0; c < MAX_COLUNAS; c++) {
             cor_bloco = RAYWHITE;
 
-            switch (mapa[l][c]) {
+            switch (jogo.mapa[l][c]) {
                 case PAREDE_INDESTRUTIVEL:
                     cor_bloco = BLACK;
                     break;
@@ -220,7 +254,7 @@ void desenhaMapa(int max_linhas, int max_colunas, PLAYER *player, TOUPEIRA *toup
     DrawRectangle(player->pos.x, player->pos.y, ARESTA, ARESTA, GREEN);
 
     // desenha toupeiras
-    for (c_toup = 0; c_toup < *qnt_toupeiras; c_toup++) {
+    for (c_toup = 0; c_toup < jogo.qnt_toupeiras; c_toup++) {
         DrawRectangle(toupeiras[c_toup].pos.x, toupeiras[c_toup].pos.y, ARESTA, ARESTA, RED);
     }
 }
@@ -245,8 +279,10 @@ void movimentaJogador(PLAYER *player, int passo, TOUPEIRA *toupeiras, JOGO jogo)
         player->des.y = 1;
     }
 
-    if (podeMover(*player, jogo)) {
-       move(&player->pos, player->des, passo);
+    if (player->des.y || player->des.x) {
+        if (podeMover(*player, jogo, player->blocos_atravessaveis)) {
+            move(&player->pos, player->des, passo);
+        }
     }
 
     // tira a vida do jogador caso ele encostar em uma toupeira
@@ -254,10 +290,6 @@ void movimentaJogador(PLAYER *player, int passo, TOUPEIRA *toupeiras, JOGO jogo)
         if (CheckCollisionRecs((Rectangle) { player->pos.x, player->pos.y, ARESTA, ARESTA }, (Rectangle) {toupeiras[i].pos.x, toupeiras[i].pos.y, ARESTA, ARESTA})) {
             resetPosicoes(player, toupeiras, jogo.qnt_toupeiras);
             player->vidas--;
-
-            if (player->vidas == 0) {
-
-            }
         }
     }
 }
@@ -294,25 +326,32 @@ void movimentaToupeiras(TOUPEIRA *toupeiras, int passo_toupeiras, JOGO *jogo) {
     }
 }
 
-void carregaMapa(char mapa[MAX_LINHAS][MAX_COLUNAS], int fase) {
+void carregaMapa(JOGO *jogo, int fase) {
     char caminho_mapa[MAX_PATH_SIZE];
-    char linha_mapa[TAMANHO_MAPA];
     FILE *arquivo_mapa;
     int linha = 0;
+    int coluna = 0;
+    char c;
 
     sprintf(caminho_mapa, "./maps/mapa%d.txt", fase);
     arquivo_mapa = fopen(caminho_mapa, "r");
 
     if (NULL == arquivo_mapa) {
         printf("file can't be opened \n");
-    }
+    } else {
+        while (!feof(arquivo_mapa)) {
+            c = getc(arquivo_mapa);
 
-    while (!feof(arquivo_mapa)) {
-        fgets(linha_mapa, 32, arquivo_mapa); // ?
-        strcpy(mapa[linha], linha_mapa);
-        linha++;
-    }
+            if (c == '\n') {
+                coluna = 0;
+                linha++;
+            } else if (c != -1) {
+                jogo->mapa[linha][coluna] = c;
+                coluna++;
+            }
 
+        }
+    }
 
     fclose(arquivo_mapa);
 }
@@ -320,6 +359,7 @@ void carregaMapa(char mapa[MAX_LINHAS][MAX_COLUNAS], int fase) {
 void iniciaJogo(JOGO *jogo) {
     jogo->altura_mapa = MAX_LINHAS * ARESTA;
     jogo->largura_mapa = MAX_COLUNAS * ARESTA;
+    jogo->aresta = ARESTA;
     jogo->qnt_toupeiras = 0;
     jogo->toup_muda_movimento = GetTime();
 }
@@ -328,17 +368,12 @@ int main() {
     JOGO jogo;
     PLAYER player;
     TOUPEIRA toupeiras[MAX_TOUPEIRAS];
-    char mapa[MAX_LINHAS][MAX_COLUNAS];
-    int encerra;
-    int qnt_toupeiras = 0;
 
     iniciaJogo(&jogo);
 
-    carregaMapa(mapa, 1);
-    iniciaToupeiras(toupeiras, mapa, &jogo);
-    iniciaJogador(&player, mapa);
-
-    qnt_toupeiras = jogo.qnt_toupeiras;
+    carregaMapa(&jogo, 1);
+    iniciaToupeiras(toupeiras, jogo.mapa, &jogo);
+    iniciaJogador(&player, jogo.mapa);
 
     InitWindow(jogo.largura_mapa, jogo.altura_mapa, "PACMINE - UFRGS");
 
@@ -355,7 +390,7 @@ int main() {
         movimentaToupeiras(toupeiras, PASSO_TOUPEIRAS, &jogo);
 
         // inicia mapa
-        desenhaMapa(MAX_LINHAS, MAX_COLUNAS, &player, toupeiras, mapa, &qnt_toupeiras);
+        desenhaMapa(MAX_LINHAS, MAX_COLUNAS, &player, toupeiras, jogo);
 
         EndDrawing();
     }
