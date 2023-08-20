@@ -6,11 +6,11 @@
 
 #define TAMANHO_MAPA 600
 #define MAX_PATH_SIZE 20
-
 #define MAX_COLUNAS 30
 #define MAX_LINHAS 20
+#define FONT_SIZE 20
 
-#define ALTURA_MENU_SUPERIOR 30
+#define ALTURA_MENU_SUPERIOR 50
 #define ALTURA_MENU_INFERIOR 60
 #define MAX_TOUPEIRAS 200
 #define N_TIPOS_BLOCOS 8
@@ -55,8 +55,8 @@ typedef struct Toupeira {
 typedef struct {
     char mapa_atual[PATH_MAX], mapas[10][PATH_MAX];
     char mapa[MAX_LINHAS][MAX_COLUNAS];
-    int altura_mapa, largura_mapa, aresta;
-    int qnt_toupeiras;
+    int altura_mapa, largura_mapa, aresta, nivel;
+    int qnt_toupeiras, qnt_esmeraldas;
     char opcao;
     double toup_muda_movimento;
 } JOGO;
@@ -236,7 +236,7 @@ void desenhaMapa(int max_linhas, int max_colunas, PLAYER *player, TOUPEIRA *toup
                     break;
 
                 case AREA_SOTERRADA:
-                    cor_bloco = (Color) { 100, 80, 60, 255 };
+                    cor_bloco = (Color) { 120, 100, 80, 255 };
                     break;
 
                 case POWER_UP:
@@ -329,14 +329,14 @@ void movimentaToupeiras(TOUPEIRA *toupeiras, int passo_toupeiras, JOGO *jogo) {
     }
 }
 
-void carregaMapa(JOGO *jogo, int fase) {
+void carregaMapa(JOGO *jogo) {
     char caminho_mapa[MAX_PATH_SIZE];
     FILE *arquivo_mapa;
     int linha = 0;
     int coluna = 0;
     char c;
 
-    sprintf(caminho_mapa, "./maps/mapa%d.txt", fase);
+    sprintf(caminho_mapa, "./maps/mapa%d.txt", jogo->nivel);
     arquivo_mapa = fopen(caminho_mapa, "r");
 
     if (NULL == arquivo_mapa) {
@@ -351,6 +351,10 @@ void carregaMapa(JOGO *jogo, int fase) {
             } else if (c != -1) {
                 jogo->mapa[linha][coluna] = c;
                 coluna++;
+
+                if (c == ESMERALDA) {
+                   jogo->qnt_esmeraldas += 1;
+                }
             }
 
         }
@@ -364,14 +368,31 @@ void iniciaJogo(JOGO *jogo) {
     jogo->largura_mapa = MAX_COLUNAS * ARESTA;
     jogo->aresta = ARESTA;
     jogo->qnt_toupeiras = 0;
+    jogo->qnt_esmeraldas = 0;
     jogo->toup_muda_movimento = GetTime();
+    jogo->nivel = 1;
 }
 
 void desenhaTextos(JOGO jogo, PLAYER player) {
     char title[50] = { "PACMINE - UFRGS" };
     DrawRectangle(0, 0, jogo.largura_mapa, ALTURA_MENU_SUPERIOR, GRAY);
     DrawRectangle(0, (jogo.altura_mapa + ALTURA_MENU_SUPERIOR), jogo.largura_mapa, ALTURA_MENU_INFERIOR, GRAY);
-    DrawText(title, (jogo.largura_mapa - MeasureText(title, 20)) / 2, 5, 20, BLACK);
+    DrawText(title, (jogo.largura_mapa - MeasureText(title, FONT_SIZE)) / 2, 5, FONT_SIZE, BLACK);
+
+    // desenha informações do jogo
+    char vidas[30], pontuacao[20], nivel[20], esmeraldas_coletadas[30], esmeraldas_totais[30];
+    sprintf(nivel, "Nível: %d", jogo.nivel); 
+    sprintf(pontuacao, "Pontos: %d", player.pontos);
+    sprintf(vidas, "Vidas restantes: %d", player.vidas);
+    sprintf(esmeraldas_totais, "Esmeraldas totais: %d", jogo.qnt_esmeraldas);
+    sprintf(esmeraldas_coletadas, "Esmeraldas coletadas: %d", player.esmeraldas_coletadas);
+
+    DrawText(nivel, (jogo.largura_mapa - MeasureText(nivel, 16)) / 2, 30, 16, BLACK);
+    DrawText(vidas, 20, ALTURA_MENU_SUPERIOR + jogo.altura_mapa + 7.5, FONT_SIZE, BLACK);
+    DrawText(pontuacao, 20, ALTURA_MENU_SUPERIOR + jogo.altura_mapa + 10 + FONT_SIZE, FONT_SIZE, BLACK);
+    DrawText(esmeraldas_coletadas, jogo.largura_mapa / 2, ALTURA_MENU_SUPERIOR + jogo.altura_mapa + 7.5, FONT_SIZE, BLACK);
+    DrawText(esmeraldas_totais, jogo.largura_mapa / 2, ALTURA_MENU_SUPERIOR + jogo.altura_mapa + 10 + FONT_SIZE, FONT_SIZE, BLACK);
+    
 }
 
 int main() {
@@ -380,8 +401,8 @@ int main() {
     TOUPEIRA toupeiras[MAX_TOUPEIRAS];
 
     iniciaJogo(&jogo);
+    carregaMapa(&jogo);
 
-    carregaMapa(&jogo, 2);
     iniciaToupeiras(toupeiras, jogo.mapa, &jogo);
     iniciaJogador(&player, jogo.mapa);
 
