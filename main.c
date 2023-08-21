@@ -185,11 +185,28 @@ void iniciaJogador(PLAYER *player, char mapa[MAX_LINHAS][MAX_COLUNAS]) {
 }
 
 int campoDeVisao(PLAYER player, int x, int y) {
-    return 1;
-    return (x > player.pos.x - ARESTA * 3 &&
-            x < player.pos.x + ARESTA + 1 &&
-            y > player.pos.y - ARESTA * 3&&
-            y < player.pos.y + ARESTA + 1);
+    int linha, coluna, visivel = 0;
+    int linha_checada, coluna_checada, linha_player, coluna_player;
+
+    linha_player = ((int) player.pos.y - ALTURA_MENU_SUPERIOR) / ARESTA;
+    coluna_player = (int) player.pos.x / ARESTA;
+
+    for (linha = -1; linha < 2; linha++) {
+        for (coluna = -1; coluna < 2; coluna++) {
+            linha_checada = linha_player + linha;
+            coluna_checada = coluna_player + coluna;
+
+            if (CheckCollisionRecs(
+                (Rectangle) { x, y, ARESTA, ARESTA},
+                (Rectangle) { coluna_checada * ARESTA, linha_checada * ARESTA + ALTURA_MENU_SUPERIOR, ARESTA, ARESTA}
+            )) {
+                visivel = 1;
+            }
+
+        }
+    }
+
+    return visivel;
 }
 
 // funcao responsável por desenhar todos os elementos do jogo (fora os menus e textos)
@@ -205,10 +222,10 @@ void desenhaMapa(int max_linhas, int max_colunas, PLAYER *player, TOUPEIRA *toup
 
     for (l = 0; l < MAX_LINHAS; l++) {
         for (c = 0; c < MAX_COLUNAS; c++) {
-            visivel = player->power_up || campoDeVisao(*player, x, y);
             cor_bloco = RAYWHITE;
             x = c * ARESTA;
             y = (l * ARESTA) + ALTURA_MENU_SUPERIOR;
+            visivel = player->power_up || campoDeVisao(*player, x, y);
             width = jogo.aresta;
             height = jogo.aresta;
 
