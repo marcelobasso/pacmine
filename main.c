@@ -9,6 +9,7 @@
 #define MAX_COLUNAS 30
 #define MAX_LINHAS 20
 #define FONT_SIZE 20
+#define FONT_SIZE_MENU 60
 
 #define ALTURA_MENU_SUPERIOR 50
 #define ALTURA_MENU_INFERIOR 60
@@ -17,8 +18,8 @@
 #define N_BLOCOS_ESPECIAIS 3
 
 #define ARESTA 30
-#define PASSO 5
-#define PASSO_TOUPEIRAS 2
+#define PASSO 3
+#define PASSO_TOUPEIRAS 1
 #define QTD_VIDAS 3
 
 // define elementos do mapa
@@ -32,22 +33,32 @@
 #define LIVRE ' '
 
 // define menu
-#define NOJO_JOGO 'N'
-#define CARREGAR_JOGO 'C'
-#define SALVAR_JOGO 'S'
-#define SAIR 'S'
-#define VOLTAR 'V'
+#define NOVO_JOGO "Novo jogo"
+#define OP_NOVO_JOGO 'N'
+#define CARREGAR_JOGO "Carregar jogo"
+#define OP_CARREGAR_JOGO 'C'
+#define SALVAR_JOGO "Salvar jogo"
+#define OP_SALVAR_JOGO 'S'
+#define SAIR "Sair"
+#define OP_SAIR 'E'
+#define VOLTAR "Voltar"
+#define OP_VOLTAR 'V'
+
+#define JOGANDO 'J'
+#define GANHOU 'G'
+#define PERDEU 'P'
+#define MENU 'M'
 
 //Adicionei a struct Des para marcar o deslocamento
 
-typedef struct Player {
+typedef struct {
     Vector2 pos, posInicial, des;
     int vidas, pontos, esmeraldas_coletadas, power_up;
     double time_power_up;
     char blocos_intransponiveis[N_TIPOS_BLOCOS];
 } PLAYER;
 
-typedef struct Toupeira {
+typedef struct {
     Vector2 pos, posInicial, des;
     int estado; // viva ou morta
     int id;
@@ -59,7 +70,7 @@ typedef struct {
     char mapa[MAX_LINHAS][MAX_COLUNAS];
     int altura_mapa, largura_mapa, aresta, nivel;
     int qnt_toupeiras, qnt_esmeraldas;
-    char opcao, blocos_especiais[N_BLOCOS_ESPECIAIS];
+    char estado, blocos_especiais[N_BLOCOS_ESPECIAIS];
     double toup_muda_movimento;
 } JOGO;
 
@@ -184,15 +195,18 @@ void iniciaJogador(PLAYER *player, char mapa[MAX_LINHAS][MAX_COLUNAS]) {
     }
 }
 
+// checa se um bloco estao dentro do coampo de visao do jogador (9x9)
+// Corrigir bug de visao de toupeiras no canto inferior direito;
 int campoDeVisao(PLAYER player, int x, int y) {
+    // return 1;
     int linha, coluna, visivel = 0;
     int linha_checada, coluna_checada, linha_player, coluna_player;
 
     linha_player = ((int) player.pos.y - ALTURA_MENU_SUPERIOR) / ARESTA;
     coluna_player = (int) player.pos.x / ARESTA;
 
-    for (linha = -1; linha < 2; linha++) {
-        for (coluna = -1; coluna < 2; coluna++) {
+    for (linha = -2; linha < 4 && !visivel; linha++) {
+        for (coluna = -2; coluna < 4 && !visivel; coluna++) {
             linha_checada = linha_player + linha;
             coluna_checada = coluna_player + coluna;
 
@@ -267,7 +281,8 @@ void desenhaMapa(int max_linhas, int max_colunas, PLAYER *player, TOUPEIRA *toup
 
     // desenha toupeiras
     for (c_toup = 0; c_toup < jogo.qnt_toupeiras; c_toup++) {
-        DrawRectangle(toupeiras[c_toup].pos.x, toupeiras[c_toup].pos.y, ARESTA, ARESTA, visivel || campoDeVisao(*player, toupeiras[c_toup].pos.x, toupeiras[c_toup].pos.y) ? RED : BLACK);
+        cor_bloco = visivel || campoDeVisao(*player, toupeiras[c_toup].pos.x, toupeiras[c_toup].pos.y) ? RED : BLACK;
+        DrawRectangle(toupeiras[c_toup].pos.x, toupeiras[c_toup].pos.y, ARESTA, ARESTA, cor_bloco);
     }
 }
 
@@ -287,6 +302,7 @@ void colisaoBlocoEspcial(char bloco, PLAYER *player, JOGO *jogo, int linha, int 
             player->time_power_up = GetTime();
     }
 
+    // coleta o bloco (remove ele do mapa)
     jogo->mapa[linha][coluna] = LIVRE;
 }
 
@@ -345,6 +361,10 @@ void movimentaJogador(PLAYER *player, int passo, TOUPEIRA *toupeiras, JOGO *jogo
         if (CheckCollisionRecs((Rectangle) { player->pos.x, player->pos.y, ARESTA, ARESTA }, (Rectangle) {toupeiras[i].pos.x, toupeiras[i].pos.y, ARESTA, ARESTA})) {
             resetPosicoes(player, toupeiras, jogo->qnt_toupeiras);
             player->vidas--;
+
+            if (player->vidas == 0) {
+                jogo->estado = PERDEU;
+            }
         }
     }
 }
@@ -357,7 +377,7 @@ void movimentaToupeiras(TOUPEIRA *toupeiras, int passo_toupeiras, JOGO *jogo) {
 
     // movimento das toupeiras
     // define uma direcao a cada segundo
-    if (diff_time >= 1) { // pq q funciona com 1?
+    if (diff_time >= 1) {
         for (i = 0; i < jogo->qnt_toupeiras; i++) {
             // reseta o deslocamento
             toupeiras[i].des = (Vector2) { 0, 0 };
@@ -418,15 +438,20 @@ void carregaMapa(JOGO *jogo) {
     fclose(arquivo_mapa);
 }
 
-void iniciaJogo(JOGO *jogo) {
+void iniciaJogo(JOGO *jogo, TOUPEIRA *toupeiras, PLAYER *player, int nivel) {
     jogo->altura_mapa = MAX_LINHAS * ARESTA;
     jogo->largura_mapa = MAX_COLUNAS * ARESTA;
     jogo->aresta = ARESTA;
     jogo->qnt_toupeiras = 0;
     jogo->qnt_esmeraldas = 0;
     jogo->toup_muda_movimento = GetTime();
-    jogo->nivel = 1;
+    jogo->nivel = nivel;
+    jogo->estado = JOGANDO;
     sprintf(jogo->blocos_especiais, "%c%c%c", OURO, ESMERALDA, POWER_UP);
+
+    carregaMapa(jogo);
+    iniciaToupeiras(toupeiras, jogo->mapa, jogo);
+    iniciaJogador(player, jogo->mapa);
 }
 
 void desenhaTextos(JOGO jogo, PLAYER player) {
@@ -451,35 +476,121 @@ void desenhaTextos(JOGO jogo, PLAYER player) {
     
 }
 
+// trata casos especiais de selecao no menu
+void opcaoMenuSelecionada(char opcao, JOGO *jogo) {
+    switch (opcao) {
+        case OP_CARREGAR_JOGO:
+            break;
+
+        case OP_SALVAR_JOGO:
+            break;
+
+        case OP_VOLTAR:
+            jogo->estado = JOGANDO;
+            break;
+
+        default:
+            jogo->estado = opcao;
+    }
+}
+
+// desenha um fundo com transparencia para ofuscar o jogo
+void ofuscaJogo(JOGO *jogo) {
+    DrawRectangle(0, 0, jogo->largura_mapa, jogo->altura_mapa + ALTURA_MENU_INFERIOR + ALTURA_MENU_SUPERIOR, (Color) { 0, 0, 0, 180});
+}
+
+void desenhaMenu(JOGO *jogo) {
+    int altura_tela = jogo->altura_mapa + ALTURA_MENU_INFERIOR + ALTURA_MENU_SUPERIOR;
+    int espaçamento_linhas = 40, pos_y, pos_x, offset_linhas, offset_tela, i;
+    char opcoesMenu[5][30] = { NOVO_JOGO, CARREGAR_JOGO, SALVAR_JOGO, VOLTAR, SAIR };
+    char opcoesMenuChar[5] = { OP_NOVO_JOGO, OP_CARREGAR_JOGO, OP_SALVAR_JOGO, OP_VOLTAR, OP_SAIR };
+    int n_opcoes_menu = sizeof(opcoesMenu) / sizeof(char);
+    Color cor_texto;
+    Rectangle retangulo_opcao;
+
+    ofuscaJogo(jogo);
+
+    for (i = 0; i < n_opcoes_menu; i++) {
+        // calcula a posicao dos elementos na tela
+        pos_x = (jogo->largura_mapa - MeasureText(opcoesMenu[i], FONT_SIZE_MENU)) / 2;
+        offset_linhas = (espaçamento_linhas * (n_opcoes_menu - (i + (n_opcoes_menu - 1))));
+        offset_tela = (altura_tela - (FONT_SIZE_MENU * (n_opcoes_menu - i))) / 2; 
+        pos_y = offset_tela - offset_linhas;
+        // define retangulo de hitbox para selecionar uma opcao com o mouse
+        retangulo_opcao = (Rectangle) { pos_x - 10, pos_y, MeasureText(opcoesMenu[i], FONT_SIZE_MENU) + 20, FONT_SIZE_MENU };
+        cor_texto = WHITE;
+
+        // checa se o mouse esta em cima de uma opcao
+        if (CheckCollisionPointRec((Vector2) { GetMouseX(), GetMouseY() }, retangulo_opcao)) {
+            cor_texto = GRAY;
+
+            // captura o clique do mouse em uma opcao
+            if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+                opcaoMenuSelecionada(opcoesMenuChar[i], jogo);
+            }
+        }
+
+        DrawText(opcoesMenu[i], pos_x, pos_y, FONT_SIZE_MENU, cor_texto);
+    }
+}
+
+// abre e fecha o menu
+void toggleMenu(JOGO *jogo) {
+    if (IsKeyPressed(KEY_TAB)) {
+        // se o menu estiver aberto, o fecha. Senão, o abre.
+        jogo->estado = jogo->estado == MENU ? JOGANDO : MENU;
+    }
+
+    if (jogo->estado == MENU) desenhaMenu(jogo);
+}
+
+void desenhaTelaFinal(PLAYER *player, JOGO *jogo) {
+    ofuscaJogo(jogo);
+}
+
 int main() {
     JOGO jogo;
     PLAYER player;
     TOUPEIRA toupeiras[MAX_TOUPEIRAS];
 
-    iniciaJogo(&jogo);
-    carregaMapa(&jogo);
-
-    iniciaToupeiras(toupeiras, jogo.mapa, &jogo);
-    iniciaJogador(&player, jogo.mapa);
+    // inicia jogo, jogador e toupeiras
+    iniciaJogo(&jogo, toupeiras, &player, 1);
 
     InitWindow(jogo.largura_mapa, jogo.altura_mapa + (ALTURA_MENU_INFERIOR + ALTURA_MENU_SUPERIOR), "PACMINE - UFRGS");
 
     SetTargetFPS(60);
 
-    while (!WindowShouldClose()) {
-
+    while (!WindowShouldClose() && jogo.estado != OP_SAIR) {
         BeginDrawing();
 
         ClearBackground(RAYWHITE);
 
-        desenhaTextos(jogo, player);
+        switch (jogo.estado) {
+            case OP_NOVO_JOGO:
+                iniciaJogo(&jogo, toupeiras, &player, 1);
+                break;
 
-        //movimento do jogador
-        movimentaJogador(&player, PASSO, toupeiras, &jogo);
-        movimentaToupeiras(toupeiras, PASSO_TOUPEIRAS, &jogo);
+            case JOGANDO:
+                movimentaJogador(&player, PASSO, toupeiras, &jogo);
+                movimentaToupeiras(toupeiras, PASSO_TOUPEIRAS, &jogo);
+                break;
 
-        // inicia mapa
+            case PERDEU:
+            case GANHOU:
+                desenhaTelaFinal(&player, &jogo);
+                break;
+        }
+
+
+        // passa de fase.
+        if (player.esmeraldas_coletadas == jogo.qnt_esmeraldas) {
+            iniciaJogo(&jogo, toupeiras, &player, jogo.nivel + 1);
+        }
+
+        // desenha o mapa
         desenhaMapa(MAX_LINHAS, MAX_COLUNAS, &player, toupeiras, jogo);
+        desenhaTextos(jogo, player);
+        toggleMenu(&jogo);
 
         EndDrawing();
     }
