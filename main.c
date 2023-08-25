@@ -3,9 +3,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <dirent.h>
 
 #define TAMANHO_MAPA 600
-#define MAX_PATH_SIZE 20
+#define MAX_PATH_SIZE 60
+#define MAX_MAPS 100
 #define MAX_COLUNAS 30
 #define MAX_LINHAS 20
 #define FONT_SIZE 20
@@ -13,14 +15,15 @@
 
 #define ALTURA_MENU_SUPERIOR 50
 #define ALTURA_MENU_INFERIOR 60
-#define MAX_TOUPEIRAS 200
-#define N_TIPOS_BLOCOS 8
 #define N_BLOCOS_ESPECIAIS 3
+#define N_TIPOS_BLOCOS 8
+#define MAX_TOUPEIRAS 200
+#define QTD_VIDAS 3
 
+// define variáveis visuais do jogo
 #define ARESTA 30
 #define PASSO 3
 #define PASSO_TOUPEIRAS 1
-#define QTD_VIDAS 3
 
 // define elementos do mapa
 #define PAREDE_INDESTRUTIVEL '#'
@@ -44,12 +47,11 @@
 #define VOLTAR "Voltar"
 #define OP_VOLTAR 'V'
 
+// define estados do jogo
 #define JOGANDO 'J'
+#define MENU 'M'
 #define GANHOU 'G'
 #define PERDEU 'P'
-#define MENU 'M'
-
-//Adicionei a struct Des para marcar o deslocamento
 
 typedef struct {
     Vector2 pos, posInicial, des;
@@ -66,9 +68,9 @@ typedef struct {
 } TOUPEIRA;
 
 typedef struct {
-    char mapa_atual[PATH_MAX], mapas[10][PATH_MAX];
+    char mapas[MAX_MAPS][MAX_PATH_SIZE];
     char mapa[MAX_LINHAS][MAX_COLUNAS];
-    int altura_mapa, largura_mapa, aresta, nivel;
+    int altura_mapa, largura_mapa, aresta, nivel, qnt_mapas;
     int qnt_toupeiras, qnt_esmeraldas;
     char estado, blocos_especiais[N_BLOCOS_ESPECIAIS];
     double toup_muda_movimento;
@@ -79,14 +81,18 @@ int ValorNoArray(char valor, char array[], int t_array) {
     return array[t_array] == valor || ValorNoArray(valor, array, t_array - 1);
 }
 
+// desenha um fundo com transparencia para ofuscar o jogo
+void ofuscaJogo(JOGO *jogo) {
+    DrawRectangle(0, 0, jogo->largura_mapa, jogo->altura_mapa + ALTURA_MENU_INFERIOR + ALTURA_MENU_SUPERIOR, (Color) { 0, 0, 0, 180});
+}
+
 // Função responsável pela movimentação do jogador e dos inimigos.
 void move(Vector2 *pos, Vector2 des, int passo) {
     pos->x += des.x * passo;
     pos->y += des.y * passo;
 }
 
-// verifica se a entidade (player/toupeira) está dentro da tela e se ele não está colidindo com 
-// nenhum obstáculo que a interrompa.
+// verifica se a entidade (player/toupeira) não está colidindo com nenhum obstáculo que a interrompa.
 int podeMover(Vector2 pos, Vector2 des, JOGO jogo, char blocos_intransponiveis[]) {
     int linha, coluna;
     int linha_entidade, coluna_entidade, colisao = 0;
@@ -114,8 +120,7 @@ int podeMover(Vector2 pos, Vector2 des, JOGO jogo, char blocos_intransponiveis[]
     return !colisao;    
 }
 
-//verifica se o inimigo vai sair dos limites da tela
-//ainda vai ser melhoras para nao poder passar por obstaculos
+//verifica se o inimigo pode mover e se ele não está colidindo com outra toupeira
 int inimigoPodeMover(TOUPEIRA *toupeira, TOUPEIRA *toupeiras, JOGO jogo){
     int rota_colisao = 0, count = 0;
 
@@ -126,7 +131,7 @@ int inimigoPodeMover(TOUPEIRA *toupeira, TOUPEIRA *toupeiras, JOGO jogo){
         }
     }
 
-    // checa se a toupeira esta nos limites do mapa e nao esta em rota de colisao
+    // checa se a toupeira esta pode mover e nao esta em rota de colisao com outra toupeira
     return podeMover(toupeira->pos, toupeira->des, jogo, toupeira->blocos_intransponiveis) && !rota_colisao; 
 }
 
@@ -195,7 +200,7 @@ void iniciaJogador(PLAYER *player, char mapa[MAX_LINHAS][MAX_COLUNAS]) {
     }
 }
 
-// checa se um bloco estao dentro do coampo de visao do jogador (9x9)
+// checa se um bloco esta dentro do coampo de visao do jogador (9x9)
 // Corrigir bug de visao de toupeiras no canto inferior direito;
 int campoDeVisao(PLAYER player, int x, int y) {
     // return 1;
@@ -236,7 +241,7 @@ void desenhaMapa(int max_linhas, int max_colunas, PLAYER *player, TOUPEIRA *toup
 
     for (l = 0; l < MAX_LINHAS; l++) {
         for (c = 0; c < MAX_COLUNAS; c++) {
-            cor_bloco = RAYWHITE;
+            cor_bloco = GRAY;
             x = c * ARESTA;
             y = (l * ARESTA) + ALTURA_MENU_SUPERIOR;
             visivel = player->power_up || campoDeVisao(*player, x, y);
@@ -248,16 +253,21 @@ void desenhaMapa(int max_linhas, int max_colunas, PLAYER *player, TOUPEIRA *toup
                     cor_bloco = BLACK;
                     break;
 
+                case POS_INICIAL:
+                case POS_INICIAL_TOUPEIRA:
+                    cor_bloco = visivel ? RAYWHITE : GRAY;
+                    break;
+
                 case OURO:
-                    cor_bloco = GOLD;
+                    cor_bloco = visivel ? GOLD : GRAY;
                     break;
 
                 case ESMERALDA:
-                    cor_bloco = (Color) { 10, 228, 100, 122 };
+                    cor_bloco = visivel ? (Color) { 10, 228, 100, 122 } : GRAY;
                     break;
 
                 case AREA_SOTERRADA:
-                    cor_bloco = (Color) { 120, 100, 80, 255 };
+                    cor_bloco = visivel ? (Color) { 120, 100, 80, 255 } : GRAY;
                     break;
 
                 case POWER_UP:
@@ -269,10 +279,13 @@ void desenhaMapa(int max_linhas, int max_colunas, PLAYER *player, TOUPEIRA *toup
                         cor_bloco = (Color) { 255, 60, 180, 255 };
                     }
                     break;
+
+                case LIVRE:
+                    cor_bloco = visivel || campoDeVisao(*player, x, y) ? RAYWHITE : GRAY;
             }
 
             bloco = (Rectangle) { x, y, width, height };
-            DrawRectangleRec(bloco, (visivel ? cor_bloco : BLACK));
+            DrawRectangleRec(bloco,  cor_bloco);
         }
     }
 
@@ -281,7 +294,7 @@ void desenhaMapa(int max_linhas, int max_colunas, PLAYER *player, TOUPEIRA *toup
 
     // desenha toupeiras
     for (c_toup = 0; c_toup < jogo.qnt_toupeiras; c_toup++) {
-        cor_bloco = visivel || campoDeVisao(*player, toupeiras[c_toup].pos.x, toupeiras[c_toup].pos.y) ? RED : BLACK;
+        cor_bloco = visivel || campoDeVisao(*player, toupeiras[c_toup].pos.x, toupeiras[c_toup].pos.y) ? RED : GRAY;
         DrawRectangle(toupeiras[c_toup].pos.x, toupeiras[c_toup].pos.y, ARESTA, ARESTA, cor_bloco);
     }
 }
@@ -404,19 +417,17 @@ void movimentaToupeiras(TOUPEIRA *toupeiras, int passo_toupeiras, JOGO *jogo) {
     }
 }
 
-void carregaMapa(JOGO *jogo) {
-    char caminho_mapa[MAX_PATH_SIZE];
+// Função responsável por carregar o mapa do nivel atual
+int carregaMapa(JOGO *jogo) {
+    int linha = 0, coluna = 0, result = 1;
+    char caminho_mapa[MAX_PATH_SIZE], c;
     FILE *arquivo_mapa;
-    int linha = 0;
-    int coluna = 0;
-    char c;
 
-    sprintf(caminho_mapa, "./maps/mapa%d.txt", jogo->nivel);
+    // busca o caminho do mapa em jogo->mapas[nivel - 1]
+    sprintf(caminho_mapa, "./maps/%s", jogo->mapas[jogo->nivel - 1]);
     arquivo_mapa = fopen(caminho_mapa, "r");
 
-    if (NULL == arquivo_mapa) {
-        printf("file can't be opened \n");
-    } else {
+    if (arquivo_mapa != NULL) {
         while (!feof(arquivo_mapa)) {
             c = getc(arquivo_mapa);
 
@@ -427,15 +438,45 @@ void carregaMapa(JOGO *jogo) {
                 jogo->mapa[linha][coluna] = c;
                 coluna++;
 
-                if (c == ESMERALDA) {
-                   jogo->qnt_esmeraldas += 1;
-                }
+                if (c == ESMERALDA) jogo->qnt_esmeraldas += 1;
             }
 
         }
-    }
+    } else result = 0;
 
     fclose(arquivo_mapa);
+
+    return result;
+}
+
+// Função responsável por varrer a pasta './maps' e colocar todos os mapas encontrados dentro da struct JOGO.
+int carregaMapas(JOGO *jogo) {
+    struct dirent *dir;
+    int result = 1, map_count = 0;
+    char path[MAX_PATH_SIZE];
+    DIR *d;
+
+    d = opendir("./maps/");
+    if (d) {
+        while ((dir = readdir(d)) != NULL) {
+            strcpy(path, dir->d_name);
+            // se o caminho for ".." ou "." apenas o ignora (caminhos utilizados para navegação de diretório)
+            if (strcmp(path, "..") && strcmp(path, ".")) {
+                strcpy(jogo->mapas[map_count], path);
+                map_count++;
+            }
+        }
+
+        closedir(d);
+        jogo->qnt_mapas = map_count;
+    } else result = 0;
+
+    // se não há nenhum mapa na pasta, retorna erro.
+    if (jogo->qnt_mapas == 0) {
+        result = 0;
+    }
+
+    return result;
 }
 
 void iniciaJogo(JOGO *jogo, TOUPEIRA *toupeiras, PLAYER *player, int nivel) {
@@ -447,17 +488,27 @@ void iniciaJogo(JOGO *jogo, TOUPEIRA *toupeiras, PLAYER *player, int nivel) {
     jogo->toup_muda_movimento = GetTime();
     jogo->nivel = nivel;
     jogo->estado = JOGANDO;
+    jogo->qnt_mapas = 0;
     sprintf(jogo->blocos_especiais, "%c%c%c", OURO, ESMERALDA, POWER_UP);
 
-    carregaMapa(jogo);
-    iniciaToupeiras(toupeiras, jogo->mapa, jogo);
-    iniciaJogador(player, jogo->mapa);
+    if (carregaMapas(jogo)) {
+        if (carregaMapa(jogo)) {
+            iniciaToupeiras(toupeiras, jogo->mapa, jogo);
+            iniciaJogador(player, jogo->mapa);
+        } else {
+            printf("Ocorreu um erro no carregamento do mapa '%s', verifique sua integridade.", jogo->mapas[jogo->nivel - 1]);
+            jogo->estado = OP_SAIR;
+        }
+    } else {
+        printf("Ocorreu um erro no carregamento dos mapas!\nVerifique se eles estão na pasta correta: './maps'");
+        jogo->estado = OP_SAIR;
+    }
 }
 
 void desenhaTextos(JOGO jogo, PLAYER player) {
     char title[50] = { "PACMINE - UFRGS" };
-    DrawRectangle(0, 0, jogo.largura_mapa, ALTURA_MENU_SUPERIOR, GRAY);
-    DrawRectangle(0, (jogo.altura_mapa + ALTURA_MENU_SUPERIOR), jogo.largura_mapa, ALTURA_MENU_INFERIOR, GRAY);
+    DrawRectangle(0, 0, jogo.largura_mapa, ALTURA_MENU_SUPERIOR, WHITE);
+    DrawRectangle(0, (jogo.altura_mapa + ALTURA_MENU_SUPERIOR), jogo.largura_mapa, ALTURA_MENU_INFERIOR, WHITE);
     DrawText(title, (jogo.largura_mapa - MeasureText(title, FONT_SIZE)) / 2, 5, FONT_SIZE, BLACK);
 
     // desenha informações do jogo
@@ -492,11 +543,6 @@ void opcaoMenuSelecionada(char opcao, JOGO *jogo) {
         default:
             jogo->estado = opcao;
     }
-}
-
-// desenha um fundo com transparencia para ofuscar o jogo
-void ofuscaJogo(JOGO *jogo) {
-    DrawRectangle(0, 0, jogo->largura_mapa, jogo->altura_mapa + ALTURA_MENU_INFERIOR + ALTURA_MENU_SUPERIOR, (Color) { 0, 0, 0, 180});
 }
 
 void desenhaMenu(JOGO *jogo) {
@@ -544,8 +590,30 @@ void toggleMenu(JOGO *jogo) {
     if (jogo->estado == MENU) desenhaMenu(jogo);
 }
 
+// passa de fase e/ou termina jogo.
+void verificaFinal(PLAYER *player, JOGO *jogo, TOUPEIRA *toupeiras) {
+    if (player->esmeraldas_coletadas == jogo->qnt_esmeraldas) {
+        if (jogo->nivel == jogo->qnt_mapas) {
+            jogo->estado = GANHOU;
+        } else {
+            iniciaJogo(jogo, toupeiras, player, jogo->nivel + 1);
+        }
+    }
+}
+
 void desenhaTelaFinal(PLAYER *player, JOGO *jogo) {
     ofuscaJogo(jogo);
+}
+
+
+void desenhaJogo(int max_linhas, int max_colunas, PLAYER *player, TOUPEIRA *toupeiras, JOGO *jogo) {
+    desenhaMapa(MAX_LINHAS, MAX_COLUNAS, player, toupeiras, *jogo);
+    desenhaTextos(*jogo, *player);
+    toggleMenu(jogo);
+
+    if (jogo->estado == GANHOU || jogo->estado == PERDEU) {
+        desenhaTelaFinal(player, jogo);
+    }
 }
 
 int main() {
@@ -574,24 +642,10 @@ int main() {
                 movimentaJogador(&player, PASSO, toupeiras, &jogo);
                 movimentaToupeiras(toupeiras, PASSO_TOUPEIRAS, &jogo);
                 break;
-
-            case PERDEU:
-            case GANHOU:
-                desenhaTelaFinal(&player, &jogo);
-                break;
         }
 
-
-        // passa de fase.
-        if (player.esmeraldas_coletadas == jogo.qnt_esmeraldas) {
-            iniciaJogo(&jogo, toupeiras, &player, jogo.nivel + 1);
-        }
-
-        // desenha o mapa
-        desenhaMapa(MAX_LINHAS, MAX_COLUNAS, &player, toupeiras, jogo);
-        desenhaTextos(jogo, player);
-        toggleMenu(&jogo);
-
+        verificaFinal(&player, &jogo, toupeiras);
+        desenhaJogo(MAX_LINHAS, MAX_COLUNAS, &player, toupeiras, &jogo);
         EndDrawing();
     }
 
