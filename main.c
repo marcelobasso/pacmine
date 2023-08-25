@@ -550,7 +550,7 @@ void desenhaMenu(JOGO *jogo) {
     int espaçamento_linhas = 40, pos_y, pos_x, offset_linhas, offset_tela, i;
     char opcoesMenu[5][30] = { NOVO_JOGO, CARREGAR_JOGO, SALVAR_JOGO, VOLTAR, SAIR };
     char opcoesMenuChar[5] = { OP_NOVO_JOGO, OP_CARREGAR_JOGO, OP_SALVAR_JOGO, OP_VOLTAR, OP_SAIR };
-    int n_opcoes_menu = sizeof(opcoesMenu) / sizeof(char);
+    int n_opcoes_menu = sizeof(opcoesMenuChar) / sizeof(char);
     Color cor_texto;
     Rectangle retangulo_opcao;
 
@@ -605,7 +605,6 @@ void desenhaTelaFinal(PLAYER *player, JOGO *jogo) {
     ofuscaJogo(jogo);
 }
 
-
 void desenhaJogo(int max_linhas, int max_colunas, PLAYER *player, TOUPEIRA *toupeiras, JOGO *jogo) {
     desenhaMapa(MAX_LINHAS, MAX_COLUNAS, player, toupeiras, *jogo);
     desenhaTextos(*jogo, *player);
@@ -630,7 +629,6 @@ int main() {
 
     while (!WindowShouldClose() && jogo.estado != OP_SAIR) {
         BeginDrawing();
-
         ClearBackground(RAYWHITE);
 
         switch (jogo.estado) {
