@@ -161,7 +161,7 @@ void iniciaToupeiras(TOUPEIRA *toupeiras, char mapa[MAX_LINHAS][MAX_COLUNAS], JO
                 toupeiras[pos_vetor].pos.x = c * jogo->aresta;
                 toupeiras[pos_vetor].pos.y = l * jogo->aresta + ALTURA_MENU_SUPERIOR;
                 toupeiras[pos_vetor].id = pos_vetor;
-                sprintf(toupeiras[pos_vetor].blocos_intransponiveis, "%c", PAREDE_INDESTRUTIVEL);
+                                sprintf(toupeiras[pos_vetor].blocos_intransponiveis, "%c", PAREDE_INDESTRUTIVEL);
 
                 // define uma posição inicial para as toupeiras seguirem
                 toupeiras[pos_vetor].des.x = GetRandomValue(-1, 1);
@@ -235,7 +235,7 @@ void desenhaMapa(int max_linhas, int max_colunas, PLAYER *player, TOUPEIRA *toup
     int l, c, c_toup, x, y, width, height;
     int visivel = 0;
 
-    if (player->power_up && (GetTime() - player->time_power_up) > 1) {
+    if (player->power_up && (GetTime() - player->time_power_up) > 1 && jogo.estado == JOGANDO) {
         player->power_up = 0;
     }
 
@@ -372,11 +372,12 @@ void movimentaJogador(PLAYER *player, int passo, TOUPEIRA *toupeiras, JOGO *jogo
     // tira a vida do jogador caso ele encostar em uma toupeira
     for (i = 0; i < jogo->qnt_toupeiras; i++) {
         if (CheckCollisionRecs((Rectangle) { player->pos.x, player->pos.y, ARESTA, ARESTA }, (Rectangle) {toupeiras[i].pos.x, toupeiras[i].pos.y, ARESTA, ARESTA})) {
-            resetPosicoes(player, toupeiras, jogo->qnt_toupeiras);
             player->vidas--;
 
             if (player->vidas == 0) {
                 jogo->estado = PERDEU;
+            } else {
+                resetPosicoes(player, toupeiras, jogo->qnt_toupeiras);
             }
         }
     }
@@ -545,6 +546,7 @@ void opcaoMenuSelecionada(char opcao, JOGO *jogo) {
     }
 }
 
+// função responsável por desenhar todos os elementos do menu
 void desenhaMenu(JOGO *jogo) {
     int altura_tela = jogo->altura_mapa + ALTURA_MENU_INFERIOR + ALTURA_MENU_SUPERIOR;
     int espaçamento_linhas = 40, pos_y, pos_x, offset_linhas, offset_tela, i;
@@ -602,7 +604,12 @@ void verificaFinal(PLAYER *player, JOGO *jogo, TOUPEIRA *toupeiras) {
 }
 
 void desenhaTelaFinal(PLAYER *player, JOGO *jogo) {
+    char textoFinal[100];
+
     ofuscaJogo(jogo);
+    // sprintf(pontuacaoTotal, "Pontos totais: %d", player->pontos);
+    sprintf(textoFinal, jogo->estado == GANHOU ? "Missão bem sucedida." : "A Missão falhou.");
+    DrawText(textoFinal, (jogo->largura_mapa - MeasureText(textoFinal, FONT_SIZE_MENU)) / 2, (jogo->altura_mapa - FONT_SIZE_MENU) / 2, FONT_SIZE_MENU, jogo->estado == GANHOU ? DARKGREEN : RED);
 }
 
 void desenhaJogo(int max_linhas, int max_colunas, PLAYER *player, TOUPEIRA *toupeiras, JOGO *jogo) {
@@ -632,13 +639,13 @@ int main() {
         ClearBackground(RAYWHITE);
 
         switch (jogo.estado) {
-            case OP_NOVO_JOGO:
-                iniciaJogo(&jogo, toupeiras, &player, 1);
-                break;
-
             case JOGANDO:
                 movimentaJogador(&player, PASSO, toupeiras, &jogo);
                 movimentaToupeiras(toupeiras, PASSO_TOUPEIRAS, &jogo);
+                break;
+
+            case OP_NOVO_JOGO:
+                iniciaJogo(&jogo, toupeiras, &player, 1);
                 break;
         }
 
