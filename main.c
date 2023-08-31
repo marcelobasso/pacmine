@@ -53,11 +53,18 @@
 #define GANHOU 'G'
 #define PERDEU 'P'
 
+typedef struct{
+    Vector2 pos, des;
+    int estado, tamanho;
+    char blocos_intransponiveis[N_TIPOS_BLOCOS];
+} TIRO;
+
 typedef struct {
     Vector2 pos, posInicial, des;
     int vidas, pontos, esmeraldas_coletadas, power_up;
     double time_power_up;
     char blocos_intransponiveis[N_TIPOS_BLOCOS];
+    TIRO tiro;
 } PLAYER;
 
 typedef struct {
@@ -66,6 +73,7 @@ typedef struct {
     int id;
     char blocos_intransponiveis[N_TIPOS_BLOCOS];
 } TOUPEIRA;
+
 
 typedef struct {
     char mapas[MAX_MAPS][MAX_PATH_SIZE];
@@ -93,7 +101,7 @@ void move(Vector2 *pos, Vector2 des, int passo) {
 }
 
 // verifica se a entidade (player/toupeira) não está colidindo com nenhum obstáculo que a interrompa.
-int podeMover(Vector2 pos, Vector2 des, JOGO jogo, char blocos_intransponiveis[]) {
+int podeMover(Vector2 pos, Vector2 des, JOGO jogo, char blocos_intransponiveis[], int tamanho) {
     int linha, coluna;
     int linha_entidade, coluna_entidade, colisao = 0;
     int linha_checada, coluna_checada;
@@ -109,7 +117,7 @@ int podeMover(Vector2 pos, Vector2 des, JOGO jogo, char blocos_intransponiveis[]
 
             if (ValorNoArray(jogo.mapa[linha_checada][coluna_checada], blocos_intransponiveis, N_TIPOS_BLOCOS)) {
                 if (CheckCollisionRecs(
-                    (Rectangle) { pos.x + des.x, pos.y + des.y, jogo.aresta, jogo.aresta },
+                    (Rectangle) { pos.x + des.x, pos.y + des.y, tamanho, tamanho },
                     (Rectangle) { coluna_checada * jogo.aresta, (linha_checada * jogo.aresta) + ALTURA_MENU_SUPERIOR, jogo.aresta, jogo.aresta })) {
                     colisao = 1;
                 }
@@ -132,7 +140,7 @@ int inimigoPodeMover(TOUPEIRA *toupeira, TOUPEIRA *toupeiras, JOGO jogo){
     }
 
     // checa se a toupeira esta pode mover e nao esta em rota de colisao com outra toupeira
-    return podeMover(toupeira->pos, toupeira->des, jogo, toupeira->blocos_intransponiveis) && !rota_colisao; 
+    return podeMover(toupeira->pos, toupeira->des, jogo, toupeira->blocos_intransponiveis, jogo.aresta) && !rota_colisao; 
 }
 
 // coloca o player e os inimigos vivos na posicao inicial
@@ -156,6 +164,7 @@ void iniciaToupeiras(TOUPEIRA *toupeiras, char mapa[MAX_LINHAS][MAX_COLUNAS], JO
             pos_vetor = jogo->qnt_toupeiras;
 
             if (mapa[l][c] == 'T') {
+                toupeiras[pos_vetor].estado = 1;
                 toupeiras[pos_vetor].posInicial.x = c * jogo->aresta;
                 toupeiras[pos_vetor].posInicial.y = l * jogo->aresta + ALTURA_MENU_SUPERIOR;
                 toupeiras[pos_vetor].pos.x = c * jogo->aresta;
@@ -194,7 +203,14 @@ void iniciaJogador(PLAYER *player, char mapa[MAX_LINHAS][MAX_COLUNAS]) {
                 player->pontos = 0;
                 player->esmeraldas_coletadas = 0;
                 player->power_up = 0;
-                sprintf(player->blocos_intransponiveis, "%c", PAREDE_INDESTRUTIVEL);
+                player->tiro.des.x = 1;
+                player->tiro.des.y = 0;
+                player->tiro.pos.x = -50;
+                player->tiro.pos.y = -50;
+                player->tiro.estado = 0;
+                player->tiro.tamanho = 15;
+                sprintf(player->blocos_intransponiveis, "%c%c", PAREDE_INDESTRUTIVEL, AREA_SOTERRADA);
+                sprintf(player->tiro.blocos_intransponiveis, "%c%c%c", PAREDE_INDESTRUTIVEL, ESMERALDA, OURO);
             }
         }
     }
@@ -294,8 +310,13 @@ void desenhaMapa(int max_linhas, int max_colunas, PLAYER *player, TOUPEIRA *toup
 
     // desenha toupeiras
     for (c_toup = 0; c_toup < jogo.qnt_toupeiras; c_toup++) {
-        cor_bloco = visivel || campoDeVisao(*player, toupeiras[c_toup].pos.x, toupeiras[c_toup].pos.y) ? RED : GRAY;
-        DrawRectangle(toupeiras[c_toup].pos.x, toupeiras[c_toup].pos.y, ARESTA, ARESTA, cor_bloco);
+        if(toupeiras[c_toup].estado == 1){
+            cor_bloco = visivel || campoDeVisao(*player, toupeiras[c_toup].pos.x, toupeiras[c_toup].pos.y) ? RED : GRAY;
+            DrawRectangle(toupeiras[c_toup].pos.x, toupeiras[c_toup].pos.y, ARESTA, ARESTA, cor_bloco);
+        }
+    }
+    if(player->tiro.estado == 1){
+            DrawRectangle(player->tiro.pos.x, player->tiro.pos.y, player->tiro.tamanho, player->tiro.tamanho, YELLOW);
     }
 }
 
@@ -348,7 +369,7 @@ void movimentaJogador(PLAYER *player, int passo, TOUPEIRA *toupeiras, JOGO *jogo
     }
 
     if (player->des.y || player->des.x) {
-        if (podeMover(player->pos, player->des, *jogo, player->blocos_intransponiveis)) {
+        if (podeMover(player->pos, player->des, *jogo, player->blocos_intransponiveis, jogo->aresta)) {
             move(&player->pos, player->des, passo);
 
             // checa se o jogador passou por um bloco especial (ouro, esmeralda ou power_up)
@@ -371,13 +392,18 @@ void movimentaJogador(PLAYER *player, int passo, TOUPEIRA *toupeiras, JOGO *jogo
 
     // tira a vida do jogador caso ele encostar em uma toupeira
     for (i = 0; i < jogo->qnt_toupeiras; i++) {
-        if (CheckCollisionRecs((Rectangle) { player->pos.x, player->pos.y, ARESTA, ARESTA }, (Rectangle) {toupeiras[i].pos.x, toupeiras[i].pos.y, ARESTA, ARESTA})) {
-            player->vidas--;
-
-            if (player->vidas == 0) {
-                jogo->estado = PERDEU;
-            } else {
-                resetPosicoes(player, toupeiras, jogo->qnt_toupeiras);
+        if(toupeiras[i].estado == 1){
+            if (CheckCollisionRecs((Rectangle) { player->pos.x, player->pos.y, ARESTA, ARESTA }, (Rectangle) {toupeiras[i].pos.x, toupeiras[i].pos.y, ARESTA, ARESTA})) {
+                
+                if(toupeiras[i].estado == 1){
+                    player->vidas--;
+                }
+                
+                if (player->vidas == 0) {
+                    jogo->estado = PERDEU;
+                } else {
+                    resetPosicoes(player, toupeiras, jogo->qnt_toupeiras);
+                }
             }
         }
     }
@@ -410,7 +436,9 @@ void movimentaToupeiras(TOUPEIRA *toupeiras, int passo_toupeiras, JOGO *jogo) {
     // move as toupeiras
     for (i = 0; i < jogo->qnt_toupeiras; i++) {
         if (inimigoPodeMover(&toupeiras[i], toupeiras, *jogo)) {
-            move(&toupeiras[i].pos, toupeiras[i].des, PASSO_TOUPEIRAS);
+            if(toupeiras[i].estado == 1){
+                move(&toupeiras[i].pos, toupeiras[i].des, PASSO_TOUPEIRAS);
+            }
         } else {
             if (toupeiras[i].des.x) toupeiras[i].des.x *= -1;
             if (toupeiras[i].des.y) toupeiras[i].des.y *= -1;
@@ -604,12 +632,13 @@ void verificaFinal(PLAYER *player, JOGO *jogo, TOUPEIRA *toupeiras) {
 }
 
 void desenhaTelaFinal(PLAYER *player, JOGO *jogo) {
-    char textoFinal[100];
+    char textoFinal[100], pontuacaoTotal[100];
 
     ofuscaJogo(jogo);
-    // sprintf(pontuacaoTotal, "Pontos totais: %d", player->pontos);
+    sprintf(pontuacaoTotal, "Pontos totais: %d", player->pontos);
     sprintf(textoFinal, jogo->estado == GANHOU ? "Missão bem sucedida." : "A Missão falhou.");
     DrawText(textoFinal, (jogo->largura_mapa - MeasureText(textoFinal, FONT_SIZE_MENU)) / 2, (jogo->altura_mapa - FONT_SIZE_MENU) / 2, FONT_SIZE_MENU, jogo->estado == GANHOU ? DARKGREEN : RED);
+    DrawText(pontuacaoTotal, (jogo->largura_mapa - MeasureText(pontuacaoTotal, 30)) / 2, (jogo->altura_mapa - 30) / 2 + FONT_SIZE_MENU + 15, 30, WHITE);
 }
 
 void desenhaJogo(int max_linhas, int max_colunas, PLAYER *player, TOUPEIRA *toupeiras, JOGO *jogo) {
@@ -622,7 +651,105 @@ void desenhaJogo(int max_linhas, int max_colunas, PLAYER *player, TOUPEIRA *toup
     }
 }
 
-int main() {
+void moveTiro(PLAYER *player){
+    player->tiro.pos.x = player->tiro.pos.x + player->tiro.des.x;
+    player->tiro.pos.y = player->tiro.pos.y + player->tiro.des.y;
+}
+
+void calculaSentido(PLAYER *player){
+    if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)) {
+        player->tiro.des.x = 1;
+    }
+
+    if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A)) {
+        player->tiro.des.x = -1;
+    }
+
+    if (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W)) {
+        player->tiro.des.y = -1;
+    }
+
+    if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)) {
+        player->tiro.des.y = 1;
+    }
+    
+    if (!IsKeyDown(KEY_RIGHT) && !IsKeyDown(KEY_D) && !IsKeyDown(KEY_LEFT) && !IsKeyDown(KEY_A)){
+        if (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W) || IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)){
+            player->tiro.des.x = 0;
+        }
+    }
+    if (!IsKeyDown(KEY_DOWN) && !IsKeyDown(KEY_S) && !IsKeyDown(KEY_UP) && !IsKeyDown(KEY_W)){
+        if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D) || IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A)){
+            player->tiro.des.y = 0;
+        }
+    }
+}
+
+
+void colideTiro(PLAYER *player, TOUPEIRA *toupeiras, JOGO *jogo){
+    
+    int linha, coluna;
+    int linha_tiro, coluna_tiro;
+    int linha_checada, coluna_checada;
+    
+    if(!podeMover(player->tiro.pos, player->tiro.des, *jogo, player->tiro.blocos_intransponiveis, player->tiro.tamanho)){
+        player->tiro.estado = 0;
+    }
+    
+    for (int i = 0; i < jogo->qnt_toupeiras; i++) {
+        if (toupeiras[i].estado) {
+            if (CheckCollisionRecs((Rectangle) { player->tiro.pos.x, player->tiro.pos.y, player->tiro.tamanho, player->tiro.tamanho }, (Rectangle) {toupeiras[i].pos.x, toupeiras[i].pos.y, ARESTA, ARESTA})) {
+                player->pontos += 200;
+                player->tiro.estado = 0;
+                toupeiras[i].estado = 0;
+            }
+        }
+    }
+    
+    linha_tiro = ((int) player->tiro.pos.y - ALTURA_MENU_SUPERIOR) / jogo->aresta;
+    coluna_tiro = (int) player->tiro.pos.x / jogo->aresta;
+
+    for (linha = -1; linha < 2; linha++) {
+                for (coluna = -1; coluna < 2; coluna++) {
+                    linha_checada = linha_tiro + linha;
+                    coluna_checada = coluna_tiro + coluna;
+
+                    if (jogo->mapa[linha_checada][coluna_checada] == AREA_SOTERRADA) {
+                        if (CheckCollisionRecs(
+                            (Rectangle) { player->tiro.pos.x + player->tiro.des.x, player->tiro.pos.y + player->tiro.des.y, player->tiro.tamanho, player->tiro.tamanho },
+                            (Rectangle) { coluna_checada * jogo->aresta, (linha_checada * jogo->aresta) + ALTURA_MENU_SUPERIOR, jogo->aresta, jogo->aresta })) {
+                                
+                                jogo->mapa[linha_checada][coluna_checada] = LIVRE;
+                                player->tiro.estado = 0;
+                        }
+                    }
+                }
+            }
+}
+
+void atira(PLAYER *player, TOUPEIRA *toupeiras,  JOGO *jogo) {
+    if(IsKeyDown(KEY_SPACE) || IsKeyDown(KEY_G)){
+        
+        if(player->tiro.estado == 0){
+            player->tiro.estado = 1;
+            player->tiro.pos.x = player->pos.x + 5;
+            player->tiro.pos.y = player->pos.y + 5;
+        }
+    }
+    
+    if(player->tiro.estado == 0){
+        calculaSentido(player);
+    }
+    if(player->tiro.estado == 1){
+        moveTiro(player);
+        moveTiro(player);
+        moveTiro(player);
+        colideTiro(player, toupeiras, jogo);
+    }
+    
+}
+
+int main(){
     JOGO jogo;
     PLAYER player;
     TOUPEIRA toupeiras[MAX_TOUPEIRAS];
@@ -642,6 +769,7 @@ int main() {
             case JOGANDO:
                 movimentaJogador(&player, PASSO, toupeiras, &jogo);
                 movimentaToupeiras(toupeiras, PASSO_TOUPEIRAS, &jogo);
+                atira(&player, toupeiras, &jogo);
                 break;
 
             case OP_NOVO_JOGO:
@@ -651,6 +779,7 @@ int main() {
 
         verificaFinal(&player, &jogo, toupeiras);
         desenhaJogo(MAX_LINHAS, MAX_COLUNAS, &player, toupeiras, &jogo);
+        
         EndDrawing();
     }
 
