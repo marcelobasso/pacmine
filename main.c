@@ -627,6 +627,7 @@ void verificaFinal(PLAYER *player, JOGO *jogo, TOUPEIRA *toupeiras) {
             jogo->estado = GANHOU;
         } else {
             iniciaJogo(jogo, toupeiras, player, jogo->nivel + 1);
+            player->vidas += player->vidas == 3 ? 0 : 1;
         }
     }
 }
